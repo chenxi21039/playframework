@@ -1,12 +1,12 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api.i18n
 
 import javax.inject.{ Inject, Singleton }
 
 import play.api.inject.Module
-import play.api.mvc.{ Cookie, Result, RequestHeader }
+import play.api.mvc.{ DiscardingCookie, Cookie, Result, RequestHeader, Session }
 import play.mvc.Http
 
 import scala.language.postfixOps
@@ -32,9 +32,7 @@ case class Lang(language: String, country: String = "") {
   /**
    * Convert to a Java Locale value.
    */
-  def toLocale: java.util.Locale = {
-    Option(country).filterNot(_.isEmpty).map(c => new java.util.Locale(language, c)).getOrElse(new java.util.Locale(language))
-  }
+  lazy val toLocale = Option(country).filterNot(_.isEmpty).map(c => new java.util.Locale(language, c)).getOrElse(new java.util.Locale(language))
 
   /**
    * Whether this lang satisfies the given lang.
@@ -80,7 +78,7 @@ object Lang {
     Lang(defaultLocale.getLanguage, defaultLocale.getCountry)
   }
 
-  private val SimpleLocale = """([a-zA-Z]{2})""".r
+  private val SimpleLocale = """([a-zA-Z]{2,3})""".r
   private val CountryLocale = (SimpleLocale.toString + """-([a-zA-Z]{2}|[0-9]{3})""").r
 
   /**
@@ -111,7 +109,7 @@ object Lang {
    * Retrieve Lang availables from the application configuration.
    *
    * {{{
-   * application.langs="fr,en,de"
+   * play.i18n.langs = ["fr", "en", "de"]
    * }}}
    */
   def availables(implicit app: Application): Seq[Lang] = {
@@ -138,7 +136,7 @@ trait Langs {
    * These can be configured in `application.conf`, like so:
    *
    * {{{
-   * play.modules.i18n.langs="fr,en,de"
+   * play.i18n.langs = ["fr", "en", "de"]
    * }}}
    */
   def availables: Seq[Lang]
@@ -155,19 +153,22 @@ trait Langs {
 @Singleton
 class DefaultLangs @Inject() (configuration: Configuration) extends Langs {
 
-  val availables = configuration.getString("play.modules.i18n.langs").orElse {
-    configuration.getString("application.langs").map { path =>
-      Logger.warn("application.langs is deprecated, use play.modules.i18n.langs instead")
-      path
+  private val config = PlayConfig(configuration)
+  val availables = {
+    val langs = configuration.getString("application.langs") map { langsStr =>
+      Logger.warn("application.langs is deprecated, use play.i18n.langs instead")
+      langsStr.split(",").map(_.trim).toSeq
+    } getOrElse {
+      config.get[Seq[String]]("play.i18n.langs")
     }
-  }.map { langs =>
-    langs.split(",").map(_.trim).map { lang =>
+
+    langs.map { lang =>
       try { Lang(lang) } catch {
-        case NonFatal(e) => throw configuration.reportError("play.modules.i18n.langs",
+        case NonFatal(e) => throw configuration.reportError("play.i18n.langs",
           "Invalid language code [" + lang + "]", Some(e))
       }
-    }.toSeq
-  }.getOrElse(Nil)
+    }
+  }
 
   def preferred(candidates: Seq[Lang]) = candidates.collectFirst(Function.unlift { lang =>
     availables.find(_.satisfies(lang))
@@ -185,7 +186,17 @@ class DefaultLangs @Inject() (configuration: Configuration) extends Langs {
 object Messages {
 
   private[play] val messagesApiCache = Application.instanceCache[MessagesApi]
-  private[play] def messagesApi: Option[MessagesApi] = Play.maybeApplication.map(messagesApiCache)
+
+  /**
+   * Implicit conversions providing [[Messages]] or [[MessagesApi]] using an implicit [[Application]], for a smooth upgrade to 2.4
+   */
+  object Implicits {
+    import scala.language.implicitConversions
+    implicit def applicationMessagesApi(implicit application: Application): MessagesApi =
+      messagesApiCache(application)
+    implicit def applicationMessages(implicit lang: Lang, application: Application): Messages =
+      new Messages(lang, messagesApiCache(application))
+  }
 
   /**
    * Translates a message.
@@ -196,8 +207,8 @@ object Messages {
    * @param args the message arguments
    * @return the formatted message or a default rendering if the key wasn’t defined
    */
-  def apply(key: String, args: Any*)(implicit lang: Lang): String = {
-    messagesApi.fold(noMatch(key, args))(_(key, args: _*))
+  def apply(key: String, args: Any*)(implicit messages: Messages): String = {
+    messages(key, args: _*)
   }
 
   /**
@@ -209,8 +220,8 @@ object Messages {
    * @param args the message arguments
    * @return the formatted message or a default rendering if the key wasn’t defined
    */
-  def apply(keys: Seq[String], args: Any*)(implicit lang: Lang): String = {
-    messagesApi.fold(noMatch(keys.last, args))(_(keys, args: _*))
+  def apply(keys: Seq[String], args: Any*)(implicit messages: Messages): String = {
+    messages(keys, args: _*)
   }
 
   /**
@@ -218,29 +229,17 @@ object Messages {
    * @param key the message key
    * @return a boolean
    */
-  def isDefinedAt(key: String)(implicit lang: Lang): Boolean = {
-    messagesApi.fold(false)(_.isDefinedAt(key))
-  }
-
-  /**
-   * Retrieves all messages defined in this application.
-   */
-  def messages(implicit app: Application): Map[String, Map[String, String]] = {
-    messagesApi.fold(Map.empty[String, Map[String, String]])(_.messages)
+  def isDefinedAt(key: String)(implicit messages: Messages): Boolean = {
+    messages.isDefinedAt(key)
   }
 
   /**
    * Parse all messages of a given input.
    */
-  def messages(messageSource: MessageSource, messageSourceName: String): Either[PlayException.ExceptionSource, Map[String, String]] = {
+  def parse(messageSource: MessageSource, messageSourceName: String): Either[PlayException.ExceptionSource, Map[String, String]] = {
     new Messages.MessagesParser(messageSource, "").parse.right.map { messages =>
       messages.map { message => message.key -> message.pattern }.toMap
     }
-  }
-
-  private def noMatch(key: String, args: Seq[Any]) = {
-    Logger.warn(s"i18n: missing translation key $key")
-    key
   }
 
   /**
@@ -304,7 +303,7 @@ object Messages {
 
     val sentence = (comment | positioned(message)) <~ newLine
 
-    val parser = phrase((sentence | blankLine *) <~ end) ^^ {
+    val parser = phrase(((sentence | blankLine).*) <~ end) ^^ {
       case messages => messages.collect {
         case m @ Messages.Message(_, _, _, _) => m
       }
@@ -370,14 +369,14 @@ case class Messages(lang: Lang, messages: MessagesApi) {
    * @param args the message arguments
    * @return the formatted message, if this key was defined
    */
-  def translate(key: String, args: Seq[Any])(implicit lang: Lang): Option[String] = messages.translate(key, args)(lang)
+  def translate(key: String, args: Seq[Any]): Option[String] = messages.translate(key, args)(lang)
 
   /**
    * Check if a message key is defined.
    * @param key the message key
    * @return a boolean
    */
-  def isDefinedAt(key: String)(implicit lang: Lang): Boolean = messages.isDefinedAt(key)(lang)
+  def isDefinedAt(key: String): Boolean = messages.isDefinedAt(key)(lang)
 }
 
 /**
@@ -412,6 +411,8 @@ trait MessagesApi {
    * Set the language on the result
    */
   def setLang(result: Result, lang: Lang): Result
+
+  def clearLang(result: Result): Result
 
   /**
    * Translates a message.
@@ -453,6 +454,12 @@ trait MessagesApi {
    */
   def isDefinedAt(key: String)(implicit lang: Lang): Boolean
 
+  def langCookieName: String
+
+  def langCookieSecure: Boolean
+
+  def langCookieHttpOnly: Boolean
+
 }
 
 /**
@@ -461,10 +468,12 @@ trait MessagesApi {
 @Singleton
 class DefaultMessagesApi @Inject() (environment: Environment, configuration: Configuration, langs: Langs) extends MessagesApi {
 
+  private val config = PlayConfig(configuration)
+
   import java.text._
 
   protected val messagesPrefix =
-    configuration.getDeprecatedStringOpt("play.modules.i18n.path", "messages.path")
+    config.getDeprecated[Option[String]]("play.i18n.path", "messages.path")
   val messages: Map[String, Map[String, String]] = loadAllMessages
 
   def preferred(candidates: Seq[Lang]) = Messages(langs.preferred(candidates), this)
@@ -472,19 +481,17 @@ class DefaultMessagesApi @Inject() (environment: Environment, configuration: Con
   def preferred(request: RequestHeader) = {
     val maybeLangFromCookie = request.cookies.get(langCookieName)
       .flatMap(c => Lang.get(c.value))
-    val lang = maybeLangFromCookie.getOrElse(langs.preferred(request.acceptLanguages))
+    val lang = langs.preferred(maybeLangFromCookie.toSeq ++ request.acceptLanguages)
     Messages(lang, this)
   }
 
-  def preferred(request: Http.RequestHeader) = {
-    val maybeLangFromCookie = Option(request.cookies.get(langCookieName))
-      .flatMap(c => Lang.get(c.value))
-    import scala.collection.JavaConversions._
-    val lang = maybeLangFromCookie.getOrElse(langs.preferred(request.acceptLanguages))
-    Messages(lang, this)
-  }
+  def preferred(request: Http.RequestHeader) = preferred(request._underlyingHeader())
 
-  def setLang(result: Result, lang: Lang) = result.withCookies(Cookie(langCookieName, lang.code))
+  def setLang(result: Result, lang: Lang) = result.withCookies(Cookie(langCookieName, lang.code, path = Session.path, domain = Session.domain,
+    secure = langCookieSecure, httpOnly = langCookieHttpOnly))
+
+  def clearLang(result: Result) = result.discardingCookies(DiscardingCookie(langCookieName, path = Session.path, domain = Session.domain,
+    secure = langCookieSecure))
 
   def apply(key: String, args: Any*)(implicit lang: Lang): String = {
     translate(key, args).getOrElse(noMatch(key, args))
@@ -528,7 +535,7 @@ class DefaultMessagesApi @Inject() (environment: Environment, configuration: Con
     environment.classLoader.getResources(joinPaths(messagesPrefix, file)).asScala.toList
       .filterNot(url => Resources.isDirectory(environment.classLoader, url)).reverse
       .map { messageFile =>
-        Messages.messages(Messages.UrlMessageSource(messageFile), messageFile.toString).fold(e => throw e, identity)
+        Messages.parse(Messages.UrlMessageSource(messageFile), messageFile.toString).fold(e => throw e, identity)
       }.foldLeft(Map.empty[String, String]) { _ ++ _ }
   }
 
@@ -540,8 +547,15 @@ class DefaultMessagesApi @Inject() (environment: Environment, configuration: Con
       .+("default.play" -> loadMessages("messages.default"))
   }
 
-  private lazy val langCookieName =
-    configuration.getDeprecatedString("play.modules.i18n.langCookieName", "application.lang.cookie")
+  lazy val langCookieName =
+    config.getDeprecated[String]("play.i18n.langCookieName", "application.lang.cookie")
+
+  lazy val langCookieSecure =
+    config.get[Boolean]("play.i18n.langCookieSecure")
+
+  lazy val langCookieHttpOnly =
+    config.get[Boolean]("play.i18n.langCookieHttpOnly")
+
 }
 
 class I18nModule extends Module {

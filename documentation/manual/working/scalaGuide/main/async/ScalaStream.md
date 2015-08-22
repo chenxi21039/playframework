@@ -1,7 +1,7 @@
-<!--- Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com> -->
+<!--- Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com> -->
 # Streaming HTTP responses
 
-## Standard responses and Content-Length header
+## Standard responses and `Content-Length` header
 
 Since HTTP 1.1, to keep a single connection open to serve several HTTP requests and responses, the server must send the appropriate `Content-Length` HTTP header along with the response. 
 
@@ -58,7 +58,7 @@ def index = Action {
 
 Actually we have a problem here. As we don’t specify the `Content-Length` header, Play will have to compute it itself, and the only way to do this is to consume the whole enumerator content and load it into memory, and then compute the response size.
 
-That’s a problem for large files that we don’t want to load completely into memory. So to avoid that, we just have to specify the `Content-Length` header ourself.
+That’s a problem for large files that we don’t want to load completely into memory. So to avoid that, we just have to specify the `Content-Length` header ourselves.
 
 ```scala
 def index = Action {
@@ -121,7 +121,7 @@ For this kind of response we have to use **Chunked transfer encoding**.
 > 
 > The size of each chunk is sent right before the chunk itself, so that a client can tell when it has finished receiving data for that chunk. Data transfer is terminated by a final chunk of length zero.
 >
-> <http://en.wikipedia.org/wiki/Chunked_transfer_encoding>
+> <https://en.wikipedia.org/wiki/Chunked_transfer_encoding>
 
 The advantage is that we can serve the data **live**, meaning that we send chunks of data as soon as they are available. The drawback is that since the web browser doesn’t know the content size, it is not able to display a proper download progress bar.
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api.data
 
@@ -231,6 +231,16 @@ object Forms {
    * }}}
    */
   val text: Mapping[String] = of[String]
+
+  /**
+   * Constructs a simple mapping for a char field.
+   *
+   * For example:
+   * {{{
+   * Form("gender" -> char)
+   * }}}
+   */
+  val char: Mapping[Char] = of[Char]
 
   /**
    * Constructs a simple mapping for required text field.

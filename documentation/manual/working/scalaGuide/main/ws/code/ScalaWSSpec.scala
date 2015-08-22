@@ -1,21 +1,30 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package scalaguide.ws.scalaws
 
+import akka.actor.ActorSystem
+import akka.stream.ActorMaterializer
 import play.api.test._
 
 import java.io._
 
 import org.junit.runner.RunWith
 import org.specs2.runner.JUnitRunner
+import org.specs2.specification.AfterAll
 
 //#dependency
 import javax.inject.Inject
 import scala.concurrent.Future
+import scala.concurrent.duration._
 
 import play.api.mvc._
 import play.api.libs.ws._
+
+import akka.actor.ActorSystem
+import akka.stream.ActorMaterializer
+import akka.stream.scaladsl._
+import akka.util.ByteString
 
 class Application @Inject() (ws: WSClient) extends Controller {
 
@@ -32,15 +41,26 @@ case class Person(name: String, age: Int)
  * JVM implementation issue.
  */
 @RunWith(classOf[JUnitRunner])
-class ScalaWSSpec extends PlaySpecification with Results {
+class ScalaWSSpec extends PlaySpecification with Results with AfterAll {
 
-  override val concurrentExecutionContext = scala.concurrent.ExecutionContext.global
-  
+  // This needs to be removed when https://github.com/playframework/playframework/issues/4688 is fixed.
+  import play.api.libs.iteratee._
+  implicit def source2enumerator(source: Source[ByteString, _]): Enumerator[Array[Byte]] = {
+    import play.api.libs.streams.Streams
+    val publisher = source.map(_.toArray).runWith(Sink.publisher)
+    Streams.publisherToEnumerator(publisher)
+  }
+
   val url = s"http://localhost:$testServerPort/"
 
   // #scalaws-context
   implicit val context = play.api.libs.concurrent.Execution.Implicits.defaultContext
   // #scalaws-context
+
+  val system = ActorSystem()
+  implicit val materializer = ActorMaterializer()(system)
+
+  def afterAll(): Unit = system.shutdown()
 
   def withSimpleServer[T](block: WSClient => T): T = withServer {
     case _ => Action(Ok)
@@ -52,7 +72,7 @@ class ScalaWSSpec extends PlaySpecification with Results {
     })
     running(TestServer(testServerPort, app))(block(app.injector.instanceOf[WSClient]))
   }
-  
+
   /**
    * An enumerator that produces a large result.
    *
@@ -71,18 +91,18 @@ class ScalaWSSpec extends PlaySpecification with Results {
 
     "allow making a request" in withSimpleServer { ws =>
       //#simple-holder
-      val holder: WSRequestHolder = ws.url(url)
+      val request: WSRequest = ws.url(url)
       //#simple-holder
 
       //#complex-holder
-      val complexHolder: WSRequestHolder =
-        holder.withHeaders("Accept" -> "application/json")
-          .withRequestTimeout(10000)
+      val complexRequest: WSRequest =
+        request.withHeaders("Accept" -> "application/json")
+          .withRequestTimeout(10000.millis)
           .withQueryString("search" -> "play")
       //#complex-holder
 
       //#holder-get
-      val futureResponse: Future[WSResponse] = complexHolder.get()
+      val futureResponse: Future[WSResponse] = complexRequest.get()
       //#holder-get
 
       await(futureResponse).status must_== 200
@@ -149,7 +169,7 @@ class ScalaWSSpec extends PlaySpecification with Results {
     "allow setting the request timeout" in withSimpleServer { ws =>
       val response =
         //#request-timeout
-        ws.url(url).withRequestTimeout(5000).get()
+        ws.url(url).withRequestTimeout(5000.millis).get()
         //#request-timeout
 
       await(response).status must_== 200
@@ -264,18 +284,16 @@ class ScalaWSSpec extends PlaySpecification with Results {
         case ("GET", "/") => Action(Ok.chunked(largeEnumerator))
       } { ws =>
         //#stream-count-bytes
-        import play.api.libs.iteratee._
-
         // Make the request
-        val futureResponse: Future[(WSResponseHeaders, Enumerator[Array[Byte]])] =
-          ws.url(url).getStream()
+        val futureResponse: Future[StreamedResponse] =
+          ws.url(url).withMethod("GET").stream()
 
         val bytesReturned: Future[Long] = futureResponse.flatMap {
-          case (headers, body) =>
+          res =>
             // Count the number of bytes returned
-            body |>>> Iteratee.fold(0l) { (total, bytes) =>
+            res.body.runWith(Sink.fold[Long, ByteString](0L){ (total, bytes) =>
               total + bytes.length
-            }
+            })
         }
         //#stream-count-bytes
         await(bytesReturned) must_== 10000l
@@ -287,23 +305,21 @@ class ScalaWSSpec extends PlaySpecification with Results {
         val file = File.createTempFile("stream-to-file-", ".txt")
         try {
           //#stream-to-file
-          import play.api.libs.iteratee._
-
           // Make the request
-          val futureResponse: Future[(WSResponseHeaders, Enumerator[Array[Byte]])] =
-            ws.url(url).getStream()
+          val futureResponse: Future[StreamedResponse] =
+            ws.url(url).withMethod("GET").stream()
 
           val downloadedFile: Future[File] = futureResponse.flatMap {
-            case (headers, body) =>
+            res =>
               val outputStream = new FileOutputStream(file)
 
-              // The iteratee that writes to the output stream
-              val iteratee = Iteratee.foreach[Array[Byte]] { bytes =>
-                outputStream.write(bytes)
+              // The sink that writes to the output stream
+              val sink = Sink.foreach[ByteString] { bytes =>
+                outputStream.write(bytes.toArray)
               }
 
               // Feed the body into the iteratee
-              (body |>>> iteratee).andThen {
+              res.body.runWith(sink).andThen {
                 case result =>
                   // Close the output stream whether there was an error or not
                   outputStream.close()
@@ -328,8 +344,8 @@ class ScalaWSSpec extends PlaySpecification with Results {
           def downloadFile = Action.async {
 
             // Make the request
-            ws.url(url).getStream().map {
-              case (response, body) =>
+            ws.url(url).withMethod("GET").stream().map {
+              case StreamedResponse(response, body) =>
 
                 // Check that the response was successful
                 if (response.status == 200) {
@@ -351,10 +367,9 @@ class ScalaWSSpec extends PlaySpecification with Results {
             }
           }
           //#stream-to-result
-          import play.api.libs.iteratee._
           await(
             downloadFile(FakeRequest())
-              .flatMap(_.body &> Results.dechunk |>>> Iteratee.fold(0l)((t, b) => t + b.length))
+              .flatMap(_.body.dataStream.runFold(0l)((t, b) => t + b.length))
           ) must_== 10000l
 
         } finally {
@@ -368,15 +383,15 @@ class ScalaWSSpec extends PlaySpecification with Results {
         import play.api.libs.iteratee._
 
         //#stream-put
-        val futureResponse: Future[(WSResponseHeaders, Enumerator[Array[Byte]])] =
+        val futureResponse: Future[StreamedResponse] =
           ws.url(url).withMethod("PUT").withBody("some body").stream()
         //#stream-put
 
         val bytesReturned: Future[Long] = futureResponse.flatMap {
-          case (headers, body) =>
-            body |>>> Iteratee.fold(0l) { (total, bytes) =>
+          res =>
+            res.body.runWith(Sink.fold[Long, ByteString](0L){ (total, bytes) =>
               total + bytes.length
-            }
+            })
         }
         //#stream-count-bytes
         await(bytesReturned) must_== 10000l
@@ -431,17 +446,11 @@ class ScalaWSSpec extends PlaySpecification with Results {
 
       //#implicit-client
       import play.api.libs.ws.ning._
-      import com.ning.http.client.AsyncHttpClientConfig
 
-      val clientConfig = new DefaultNingWSClientConfig()
-      val secureDefaults: AsyncHttpClientConfig = new NingAsyncHttpClientConfigBuilder(clientConfig).build()
-      // You can directly use the builder for specific options once you have secure TLS defaults...
-      val builder = new AsyncHttpClientConfig.Builder(secureDefaults)
-      builder.setCompressionEnabled(true)
-      val secureDefaultsWithSpecificOptions: AsyncHttpClientConfig = builder.build()
-      implicit val sslClient = new NingWSClient(secureDefaultsWithSpecificOptions)
-
+      implicit val sslClient = NingWSClient()
+      // close with sslClient.close() when finished with client
       val response = WS.clientUrl(url).get()
+
       //#implicit-client
       await(response).status must_== OK
 
@@ -460,8 +469,8 @@ class ScalaWSSpec extends PlaySpecification with Results {
       //#pair-magnet
       object PairMagnet {
         implicit def fromPair(pair: (WSClient, java.net.URL)) =
-          new WSRequestHolderMagnet {
-            def apply(): WSRequestHolder = {
+          new WSRequestMagnet {
+            def apply(): WSRequest = {
               val (client, netUrl) = pair
               client.url(netUrl.toString)
             }
@@ -486,7 +495,7 @@ class ScalaWSSpec extends PlaySpecification with Results {
       import play.api.libs.ws._
       import play.api.libs.ws.ning._
 
-      val configuration = play.api.Configuration(ConfigFactory.parseString(
+      val configuration = Configuration.reference ++ Configuration(ConfigFactory.parseString(
         """
           |ws.followRedirects = true
         """.stripMargin))
@@ -494,8 +503,8 @@ class ScalaWSSpec extends PlaySpecification with Results {
       // If running in Play, environment should be injected
       val environment = Environment(new File("."), this.getClass.getClassLoader, Mode.Prod)
 
-      val parser = new DefaultWSConfigParser(configuration, environment)
-      val config = new DefaultNingWSClientConfig(wsClientConfig = parser.parse())
+      val parser = new WSConfigParser(configuration, environment)
+      val config = new NingWSClientConfig(wsClientConfig = parser.parse())
       val builder = new NingAsyncHttpClientConfigBuilder(config)
       //#programmatic-config
 
@@ -514,5 +523,3 @@ class ScalaWSSpec extends PlaySpecification with Results {
 
   }
 }
-
-

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.mvc;
 
@@ -23,16 +23,37 @@ public abstract class Call {
     public abstract String method();
 
     /**
+     * The fragment of the URL.
+     */
+    public abstract String fragment();
+
+    /**
      * Append a unique identifier to the URL.
      */
     public Call unique() {
-        String url = this.url();
-        if(url.indexOf('?') == -1) {
-            url = url + "?" + rand.nextLong();
+        return new play.api.mvc.Call(method(), this.uniquify(this.url()), fragment());
+    }
+
+    protected final String uniquify(String url) {
+        return url + ((url.indexOf('?') == -1) ? "?" : "&") + rand.nextLong();
+    }
+
+    /**
+     * Returns a new Call with the given fragment.
+     */
+    public Call withFragment(String fragment) {
+        return new play.api.mvc.Call(method(), url(), fragment);
+    }
+
+    /**
+     * Returns the fragment (including the leading "#") if this call has one.
+     */
+    protected String appendFragment() {
+        if (this.fragment() != null && !this.fragment().trim().isEmpty()) {
+            return "#" + this.fragment();
         } else {
-            url = url + "&" + rand.nextLong();
+            return "";
         }
-        return new play.api.mvc.Call(method(), url);
     }
 
     /**
@@ -53,7 +74,7 @@ public abstract class Call {
      * Transform this call to an absolute URL.
      */
     public String absoluteURL(boolean secure, String host) {
-        return "http" + (secure ? "s" : "") + "://" + host + this.url();
+        return "http" + (secure ? "s" : "") + "://" + host + this.url() + this.appendFragment();
     }
 
     /**
@@ -75,6 +96,15 @@ public abstract class Call {
      */
     public String webSocketURL(boolean secure, String host) {
       return "ws" + (secure ? "s" : "") + "://" + host + this.url();
+    }
+
+    public String path() {
+        return this.url() + this.appendFragment();
+    }
+
+    @Override
+    public String toString() {
+        return this.path();
     }
 
 }

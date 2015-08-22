@@ -1,4 +1,4 @@
-<!--- Copyright (C) 2009-2014 Typesafe Inc. <http://www.typesafe.com> -->
+<!--- Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com> -->
 # SBT Cookbook
 
 ## Hook actions around `play run`
@@ -66,7 +66,7 @@ object Grunt {
 
     object GruntProcess extends PlayRunHook {
 
-    var process: Option[Process] = None
+      var process: Option[Process] = None
 
       override def beforeStarted(): Unit = {
         Process("grunt dist", base).run
@@ -141,7 +141,7 @@ ivyLoggingLevel := UpdateLogging.Quiet
 
 ## Fork and parallel execution in test
 
-By default parallel execution is disable and fork is enable. You can change this behavior by setting `parallelExecution in Test` and/or `fork in Test`:
+By default parallel execution is disabled and fork is enabled. You can change this behavior by setting `parallelExecution in Test` and/or `fork in Test`:
 
 ```scala
 parallelExecution in Test := true

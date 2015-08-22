@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api.data
 
@@ -216,14 +216,14 @@ case class Form[T](mapping: Mapping[T], data: Map[String, String], errors: Seq[F
   /**
    * Returns the concrete value, if the submission was a success.
    *
-   * Note that this method fails with an Exception if this form as errors.
+   * Note that this method fails with an Exception if this form has errors.
    */
   def get: T = value.get
 
   /**
    * Returns the form errors serialized as Json.
    */
-  def errorsAsJson(implicit lang: play.api.i18n.Lang): play.api.libs.json.JsValue = {
+  def errorsAsJson(implicit lang: play.api.i18n.Messages): play.api.libs.json.JsValue = {
 
     import play.api.libs.json._
 
@@ -556,7 +556,7 @@ trait Mapping[T] {
   protected def collectErrors(t: T): Seq[FormError] = {
     constraints.map(_(t)).collect {
       case Invalid(errors) => errors.toSeq
-    }.flatten.map(ve => FormError(key, ve.message, ve.args))
+    }.flatten.map(ve => FormError(key, ve.messages, ve.args))
   }
 
 }

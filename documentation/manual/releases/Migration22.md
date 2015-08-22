@@ -1,4 +1,4 @@
-<!--- Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com> -->
+<!--- Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com> -->
 # Play 2.2 Migration Guide
 
 This is a guide for migrating from Play 2.1 to Play 2.2. If you need to migrate from an earlier version of Play then you must first follow the [[Play 2.1 Migration Guide|Migration21]].
@@ -70,7 +70,7 @@ def asyncAction = Action {
 }
 ```
 
-You can now use the [`Action.async`](api/scala/index.html#play.api.mvc.ActionBuilder) builder:
+You can now use the [`Action.async`](api/scala/play/api/mvc/ActionBuilder.html) builder:
 
 ```scala
 def asyncAction = Action.async {
@@ -80,7 +80,7 @@ def asyncAction = Action.async {
 
 ### Working with chunked results
 
-Previously the `stream` method on `Status` was used to produce chunked results.  This has been deprecated, replaced with a [`chunked`](api/scala/index.html#play.api.mvc.Results$Status) method, that makes it clear that the result is going to be chunked.  For example:
+Previously the `stream` method on `Status` was used to produce chunked results.  This has been deprecated, replaced with a [`chunked`](api/scala/play/api/mvc/Results$Status.html) method, that makes it clear that the result is going to be chunked.  For example:
 
 ```scala
 def cometAction = Action {
@@ -92,7 +92,7 @@ Advanced uses that created or used `ChunkedResult` directly should be replaced w
 
 ### Action composition
 
-We are now recommending that action composition be done using [`ActionBuilder`](api/scala/index.html#play.api.mvc.ActionBuilder) implementations for building actions.
+We are now recommending that action composition be done using [`ActionBuilder`](api/scala/play/api/mvc/ActionBuilder.html) implementations for building actions.
 
 Details on how to do these can be found [[here|ScalaActionsComposition]].
 

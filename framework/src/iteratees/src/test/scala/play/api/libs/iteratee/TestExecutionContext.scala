@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api.libs.iteratee
 
@@ -35,7 +35,9 @@ class TestExecutionContext(delegate: ExecutionContext) extends ExecutionContext 
     throw new RuntimeException("Cannot execute unprepared TestExecutionContext")
   }
 
-  def reportFailure(t: Throwable): Unit = delegate.reportFailure(t)
+  def reportFailure(t: Throwable): Unit = {
+    println(t)
+  }
 
   override def prepare(): ExecutionContext = {
     val isLocal = Option(local.get()).getOrElse(false: java.lang.Boolean)
@@ -48,7 +50,9 @@ class TestExecutionContext(delegate: ExecutionContext) extends ExecutionContext 
         preparedDelegate.execute(runnable)
       }
 
-      def reportFailure(t: Throwable): Unit = preparedDelegate.reportFailure(t)
+      def reportFailure(t: Throwable): Unit = {
+        println(t)
+      }
 
     }
   }

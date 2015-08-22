@@ -1,6 +1,8 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
+
+import com.typesafe.play.sbt.enhancer.PlayEnhancer
 import sbt._
 import sbt.Keys._
 import play.Play.autoImport._
@@ -51,26 +53,30 @@ object ApplicationBuild extends Build {
         enabled.foldLeft[FileFilter](new ExactFilter("code")) { (filter, e) => filter || new ExactFilter("code-" + e) })
   }
 
-  lazy val main = Project("Play-Documentation", file(".")).enablePlugins(PlayDocsPlugin).settings(
+  lazy val main = Project("Play-Documentation", file("."))
+    .enablePlugins(PlayDocsPlugin).disablePlugins(PlayEnhancer).settings(
     resolvers += Resolver.sonatypeRepo("releases"), // TODO: Delete this eventually, just needed for lag between deploying to sonatype and getting on maven central
     version := PlayVersion.current,
-    scalaVersion := sys.props.get("scala.version").getOrElse(PlayVersion.scalaVersion),
     libraryDependencies ++= Seq(
       "org.mockito" % "mockito-core" % "1.9.5" % "test"
     ),
 
-    PlayDocsKeys.fallbackToJar := false,
-
-    PlayDocsKeys.docsJarFile := Option((packageBin in (playDocs, Compile)).value),
+    PlayDocsKeys.docsJarFile := Some((packageBin in (playDocs, Compile)).value),
+    PlayDocsKeys.playDocsValidationConfig := PlayDocsValidation.ValidationConfig(downstreamWikiPages = Set("ScalaAnorm","PlaySlickMigrationGuide")),
 
     PlayDocsKeys.javaManualSourceDirectories := (baseDirectory.value / "manual" / "working" / "javaGuide" ** codeFilter).get,
     PlayDocsKeys.scalaManualSourceDirectories := (baseDirectory.value / "manual" / "working" / "scalaGuide" ** codeFilter).get,
 
-    PlayDocsKeys.javaManualSourceDirectories ++= { if (isJavaAtLeast("1.8")) (baseDirectory.value / "manual" / "javaGuide" ** "java8code").get else Nil },
-
     unmanagedSourceDirectories in Test ++= (baseDirectory.value / "manual" / "detailedTopics" ** codeFilter).get,
-    unmanagedResourceDirectories in Test ++= (baseDirectory.value / "manual" / "detailedTopics" ** codeFilter).get
+    unmanagedResourceDirectories in Test ++= (baseDirectory.value / "manual" / "detailedTopics" ** codeFilter).get,
 
+    // Don't include sbt files in the resources
+    excludeFilter in (Test, unmanagedResources) := (excludeFilter in (Test, unmanagedResources)).value || "*.sbt",
+
+    crossScalaVersions := Seq("2.10.5", "2.11.7"),
+    scalaVersion := PlayVersion.scalaVersion,
+
+    fork in Test := true
   ).settings(externalPlayModuleSettings:_*)
    .dependsOn(
       playDocs,
@@ -79,7 +85,10 @@ object ApplicationBuild extends Build {
       playProject("Play-Java") % "test",
       playProject("Play-Cache") % "test",
       playProject("Play-Java-WS") % "test",
-      playProject("Filters-Helpers") % "test"
+      playProject("Filters-Helpers") % "test",
+      playProject("Play-JDBC-Evolutions") % "test",
+      playProject("Play-JDBC") % "test",
+      playProject("Play-Java-JDBC") % "test"
   )
 
   lazy val playDocs = playProject("Play-Docs")

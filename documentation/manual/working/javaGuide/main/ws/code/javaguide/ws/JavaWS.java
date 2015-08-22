@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package javaguide.ws;
 
@@ -7,7 +7,6 @@ import javaguide.testhelpers.MockJavaAction;
 
 // #ws-imports
 import play.libs.ws.*;
-import play.libs.F.Function;
 import play.libs.F.Promise;
 // #ws-imports
 
@@ -17,6 +16,8 @@ import play.libs.Json;
 // #json-imports
 
 import java.io.*;
+import java.util.concurrent.TimeUnit;
+
 import org.w3c.dom.Document;
 import play.mvc.Result;
 
@@ -25,11 +26,11 @@ import javax.inject.Inject;
 // #ws-custom-client-imports
 import com.ning.http.client.*;
 import play.api.libs.ws.WSClientConfig;
-import play.api.libs.ws.DefaultWSClientConfig;
 import play.api.libs.ws.ning.NingWSClientConfig;
-import play.api.libs.ws.ning.DefaultNingWSClientConfig;
-import play.api.libs.ws.ssl.SSLConfig;
+import play.api.libs.ws.ning.NingWSClientConfigFactory;
+import play.api.libs.ws.ssl.SSLConfigFactory;
 import play.api.libs.ws.ning.NingAsyncHttpClientConfigBuilder;
+import scala.concurrent.duration.Duration;
 // #ws-custom-client-imports
 
 public class JavaWS {
@@ -41,17 +42,17 @@ public class JavaWS {
 
         public void requestExamples() {
             // #ws-holder
-            WSRequestHolder holder = ws.url("http://example.com");
+            WSRequest request = ws.url("http://example.com");
             // #ws-holder
 
             // #ws-complex-holder
-            WSRequestHolder complexHolder = holder.setHeader("headerKey", "headerValue")
-                                                  .setTimeout(1000)
-                                                  .setQueryParameter("paramKey", "paramValue");
+            WSRequest complexRequest = request.setHeader("headerKey", "headerValue")
+                                                    .setRequestTimeout(1000)
+                                                    .setQueryParameter("paramKey", "paramValue");
             // #ws-complex-holder
 
             // #ws-get
-            Promise<WSResponse> responsePromise = complexHolder.get();
+            Promise<WSResponse> responsePromise = complexRequest.get();
             // #ws-get
 
             String url = "http://example.com";
@@ -79,7 +80,7 @@ public class JavaWS {
             // #ws-header-content-type
 
             // #ws-timeout
-            ws.url(url).setTimeout(1000).get();
+            ws.url(url).setRequestTimeout(1000).get();
             // #ws-timeout
 
             // #ws-post-form-data
@@ -100,91 +101,55 @@ public class JavaWS {
 
           String url = "http://example.com";
 
-          // #ws-response-json
-          Promise<JsonNode> jsonPromise = ws.url(url).get().map(
-              new Function<WSResponse, JsonNode>() {
-                  public JsonNode apply(WSResponse response) {
-                      JsonNode json = response.asJson();
-                      return json;
-                  }
-              }
-          );
-          // #ws-response-json
+            // #ws-response-json
+            Promise<JsonNode> jsonPromise = ws.url(url).get().map(response -> {
+                return response.asJson();
+            });
+            // #ws-response-json
 
-          // #ws-response-xml
-          Promise<Document> documentPromise = ws.url(url).get().map(
-              new Function<WSResponse, Document>() {
-                  public Document apply(WSResponse response) {
-                      Document xml = response.asXml();
-                      return xml;
-                  }
-              }
-          );
-          // #ws-response-xml
+            // #ws-response-xml
+            Promise<Document> documentPromise = ws.url(url).get().map(response -> {
+                return response.asXml();
+            });
+            // #ws-response-xml
 
-          // #ws-response-input-stream
-          final Promise<File> filePromise = ws.url(url).get().map(
-              new Function<WSResponse, File>() {
-                  public File apply(WSResponse response) throws Throwable {
+            // #ws-response-input-stream
+            Promise<File> filePromise = ws.url(url).get().map(response -> {
+                // write the inputStream to a File
+                File file = new File("/tmp/response.txt");
 
-                      InputStream inputStream = null;
-                      OutputStream outputStream = null;
-                      try {
-                          inputStream = response.getBodyAsStream();
+                try(
+                    InputStream inputStream = response.getBodyAsStream();
+                    OutputStream outputStream = new FileOutputStream(file)
+                ) {
+                    int read = 0;
+                    byte[] buffer = new byte[1024];
 
-                          // write the inputStream to a File
-                          final File file = new File("/tmp/response.txt");
-                          outputStream = new FileOutputStream(file);
+                    while ((read = inputStream.read(buffer)) != -1) {
+                        outputStream.write(buffer, 0, read);
+                    }
 
-                          int read = 0;
-                          byte[] buffer = new byte[1024];
-
-                          while ((read = inputStream.read(buffer)) != -1) {
-                              outputStream.write(buffer, 0, read);
-                          }
-
-                          return file;
-                      } catch (IOException e) {
-                          throw e;
-                      } finally {
-                          if (inputStream != null) {inputStream.close();}
-                          if (outputStream != null) {outputStream.close();}
-                      }
-
-                  }
-              }
-          );
-          // #ws-response-input-stream
+                    return file;
+                } catch(IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            // #ws-response-input-stream
         }
 
         public void patternExamples() {
             String urlOne = "http://localhost:3333/one";
             // #ws-composition
-            final Promise<WSResponse> responseThreePromise = ws.url(urlOne).get().flatMap(
-                new Function<WSResponse, Promise<WSResponse>>() {
-                    public Promise<WSResponse> apply(WSResponse responseOne) {
-                        String urlTwo = responseOne.getBody();
-                        return ws.url(urlTwo).get().flatMap(
-                            new Function<WSResponse, Promise<WSResponse>>() {
-                                public Promise<WSResponse> apply(WSResponse responseTwo) {
-                                    String urlThree = responseTwo.getBody();
-                                    return ws.url(urlThree).get();
-                                }
-                            }
-                        );
-                    }
-                }
-            );
+            final Promise<WSResponse> responseThreePromise = ws.url(urlOne).get()
+                    .flatMap(responseOne -> ws.url(responseOne.getBody()).get())
+                    .flatMap(responseTwo -> ws.url(responseTwo.getBody()).get());
             // #ws-composition
 
             // #ws-recover
             Promise<WSResponse> responsePromise = ws.url("http://example.com").get();
-            Promise<WSResponse> recoverPromise = responsePromise.recoverWith(new Function<Throwable, Promise<WSResponse>>() {
-                @Override
-                public Promise<WSResponse> apply(Throwable throwable) throws Throwable {
-                    return ws.url("http://backup.example.com").get();
-                }
-            });
+            Promise<WSResponse> recoverPromise = responsePromise.recoverWith(throwable ->
+                            ws.url("http://backup.example.com").get()
+            );
             // #ws-recover
         }
 
@@ -195,30 +160,27 @@ public class JavaWS {
 
             // #ws-custom-client
             // Set up the client config (you can also use a parser here):
-            scala.Option<Object> none = scala.None$.empty();
             scala.Option<String> noneString = scala.None$.empty();
-            scala.Option<SSLConfig> noneSSLConfig = scala.None$.empty();
-            WSClientConfig wsClientConfig = new DefaultWSClientConfig(
-                    none, // connectionTimeout
-                    none, // idleTimeout
-                    none, // requestTimeout
-                    none, // followRedirects
-                    none, // useProxyProperties
+            WSClientConfig wsClientConfig = new WSClientConfig(
+                    Duration.apply(120, TimeUnit.SECONDS), // connectionTimeout
+                    Duration.apply(120, TimeUnit.SECONDS), // idleTimeout
+                    Duration.apply(120, TimeUnit.SECONDS), // requestTimeout
+                    true, // followRedirects
+                    true, // useProxyProperties
                     noneString, // userAgent
-                    none, // compressionEnabled
-                    none, // acceptAnyCertificate
-                    noneSSLConfig);
+                    true, // compressionEnabled / enforced
+                    SSLConfigFactory.defaultConfig());
 
-            NingWSClientConfig clientConfig = new DefaultNingWSClientConfig(wsClientConfig, none, none, none, none, none, none, none, none, none, none);
+            NingWSClientConfig clientConfig = NingWSClientConfigFactory.forClientConfig(wsClientConfig);
 
             // Build a secure config out of the client config:
             NingAsyncHttpClientConfigBuilder secureBuilder = new NingAsyncHttpClientConfigBuilder(clientConfig);
             AsyncHttpClientConfig secureDefaults = secureBuilder.build();
 
             // You can directly use the builder for specific options once you have secure TLS defaults...
-           AsyncHttpClientConfig customConfig = new AsyncHttpClientConfig.Builder(secureDefaults)
+            AsyncHttpClientConfig customConfig = new AsyncHttpClientConfig.Builder(secureDefaults)
                             .setProxyServer(new com.ning.http.client.ProxyServer("127.0.0.1", 38080))
-                            .setCompressionEnabled(true)
+                            .setCompressionEnforced(true)
                             .build();
             WSClient customClient = new play.libs.ws.ning.NingWSClient(customConfig);
 
@@ -240,14 +202,9 @@ public class JavaWS {
 
         // #ws-action
         public Promise<Result> index() {
-            final Promise<Result> resultPromise = ws.url(feedUrl).get().map(
-                    new Function<WSResponse, Result>() {
-                        public Result apply(WSResponse response) {
-                            return ok("Feed title:" + response.asJson().findPath("title"));
-                        }
-                    }
+            return ws.url(feedUrl).get().map(response ->
+                            ok("Feed title: " + response.asJson().findPath("title").asText())
             );
-            return resultPromise;
         }
         // #ws-action
     }
@@ -259,20 +216,9 @@ public class JavaWS {
 
         // #composed-call
         public Promise<Result> index() {
-            final Promise<Result> resultPromise = ws.url(feedUrl).get().flatMap(
-                    new Function<WSResponse, Promise<Result>>() {
-                        public Promise<Result> apply(WSResponse response) {
-                            return ws.url(response.asJson().findPath("commentsUrl").asText()).get().map(
-                                    new Function<WSResponse, Result>() {
-                                        public Result apply(WSResponse response) {
-                                            return ok("Number of comments: " + response.asJson().findPath("count").asInt());
-                                        }
-                                    }
-                            );
-                        }
-                    }
-            );
-            return resultPromise;
+            return ws.url(feedUrl).get()
+                    .flatMap(response -> ws.url(response.asJson().findPath("commentsUrl").asText()).get())
+                    .map(response -> ok("Number of comments: " + response.asJson().findPath("count").asInt()));
         }
         // #composed-call
     }

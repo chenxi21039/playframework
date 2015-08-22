@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package scalaguide.http.scalasessionflash {
 
@@ -113,7 +113,7 @@ package scalaguide.http.scalasessionflash {
     }
 
     def assertAction[A, T: AsResult](action: Action[A], expectedResponse: Int = OK, request: => Request[A] = FakeRequest())(assertions: Future[Result] => T) = {
-      val fakeApp = FakeApplication(additionalConfiguration = Map("application.secret" -> "pass"))
+      val fakeApp = FakeApplication()
       running(fakeApp) {
         val result = action(request)
         status(result) must_== expectedResponse

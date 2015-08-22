@@ -1,22 +1,26 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.it.http.parsing
 
+import akka.stream.Materializer
+import akka.stream.scaladsl.Source
+import akka.util.ByteString
 import play.api.test._
 import play.api.mvc.{ BodyParser, BodyParsers }
-import play.api.libs.iteratee.Enumerator
 import scala.xml.NodeSeq
 import java.io.File
-import org.apache.commons.io.{ FileUtils, IOUtils }
+import org.apache.commons.io.FileUtils
 
 object XmlBodyParserSpec extends PlaySpecification {
 
   "The XML body parser" should {
 
-    def parse(xml: String, contentType: Option[String], encoding: String, bodyParser: BodyParser[NodeSeq] = BodyParsers.parse.tolerantXml(1048576)) = {
-      await(Enumerator(xml.getBytes(encoding)) |>>>
-        bodyParser(FakeRequest().withHeaders(contentType.map(CONTENT_TYPE -> _).toSeq: _*)))
+    def parse(xml: String, contentType: Option[String], encoding: String, bodyParser: BodyParser[NodeSeq] = BodyParsers.parse.tolerantXml(1048576))(implicit mat: Materializer) = {
+      await(
+        bodyParser(FakeRequest().withHeaders(contentType.map(CONTENT_TYPE -> _).toSeq: _*))
+          .run(Source.single(ByteString(xml, encoding)))
+      )
     }
 
     "parse XML bodies" in new WithApplication() {

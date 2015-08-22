@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package javaguide.async;
 
@@ -13,6 +13,7 @@ import play.mvc.Results.Chunks;
 import play.test.WithApplication;
 
 import java.io.*;
+import java.util.Optional;
 
 import static org.hamcrest.CoreMatchers.*;
 import static org.junit.Assert.*;
@@ -37,15 +38,12 @@ public class JavaStream extends WithApplication {
     public void serveFile() throws Exception {
         File file = new File("/tmp/fileToServe.pdf");
         file.deleteOnExit();
-        OutputStream os = new FileOutputStream(file);
-        try {
+        try (OutputStream os = new FileOutputStream(file)) {
             IOUtils.write("hi", os);
-        } finally {
-            os.close();
         }
         Result result = MockJavaActionHelper.call(new Controller2(), fakeRequest());
-        assertThat(contentAsString(result), equalTo("hi"));
-        assertThat(header(CONTENT_LENGTH, result), equalTo("2"));
+        assertThat(contentAsString(result, mat), equalTo("hi"));
+        assertThat(result.body().contentLength(), equalTo(Optional.of(2L)));
         file.delete();
     }
 
@@ -59,7 +57,7 @@ public class JavaStream extends WithApplication {
 
     @Test
     public void inputStream() {
-        String content = contentAsString(MockJavaActionHelper.call(new Controller3(), fakeRequest()));
+        String content = contentAsString(MockJavaActionHelper.call(new Controller3(), fakeRequest()), mat);
         // Wait until results refactoring is merged, then this will work
         // assertThat(content, containsString("hello"));
     }
@@ -79,23 +77,17 @@ public class JavaStream extends WithApplication {
 
     @Test
     public void chunked() {
-        String content = contentAsString(MockJavaActionHelper.call(new Controller4(), fakeRequest()));
-        // Wait until results refactoring is merged, then this will work
-        // assertThat(content, containsString("kikifoobar"));
+        String content = contentAsString(MockJavaActionHelper.call(new Controller4(), fakeRequest()), mat);
+        assertThat(content, equalTo("kikifoobar"));
     }
 
     public static class Controller4 extends MockJavaAction {
         //#chunked
         public Result index() {
             // Prepare a chunked text stream
-            Chunks<String> chunks = new StringChunks() {
-
-                // Called when the stream is ready
-                public void onReady(Chunks.Out<String> out) {
-                    registerOutChannelSomewhere(out);
-                }
-
-            };
+            Chunks<String> chunks = StringChunks.whenReady(
+                    JavaStream::registerOutChannelSomewhere
+            );
 
             // Serves this stream with 200 OK
             return ok(chunks);

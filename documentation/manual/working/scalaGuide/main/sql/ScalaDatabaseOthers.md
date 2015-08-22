@@ -1,4 +1,4 @@
-<!--- Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com> -->
+<!--- Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com> -->
 # Integrating with other database libraries
 
 You can use any **SQL** database access library you like with Play, and easily retrieve either a `Connection` or a `Datasource` from the `play.api.db.DB` helper.
@@ -40,7 +40,7 @@ object Task extends Table[(Long, String, Date, Boolean)]("tasks") {
 
 Some libraries expect to retrieve the `Datasource` reference from JNDI. You can expose any Play managed datasource via JNDI by adding this configuration in `conf/application.conf`:
 
-```
+```properties
 db.default.driver=org.h2.Driver
 db.default.url="jdbc:h2:mem:play"
 db.default.jndiName=DefaultDS

@@ -1,8 +1,9 @@
 /*
- * Copyright (C) 2009-2014 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package javaguide.http;
 
+import akka.stream.Materializer;
 import org.junit.Before;
 import org.junit.Test;
 import play.libs.Json;
@@ -30,7 +31,7 @@ public class JavaBodyParsers extends WithApplication {
                 return ok("Got body: " + body);
             }
             //#request-body
-        }, fakeRequest().withTextBody("foo"))), containsString("foo"));
+        }, fakeRequest().bodyText("foo"))), containsString("foo"));
     }
 
     @Test
@@ -43,13 +44,13 @@ public class JavaBodyParsers extends WithApplication {
                         return ok("Got json: " + body.asJson());
                     }
                     //#particular-body-parser
-                }, fakeRequest().withJsonBody(Json.toJson("foo")))),
+                }, fakeRequest().bodyJson(Json.toJson("foo")))),
                 containsString("\"foo\""));
     }
 
     @Test
     public void defaultParser() {
-        assertThat(status(call(new MockJavaAction() {
+        assertThat(call(new MockJavaAction() {
                     //#default-parser
                     public Result save() {
                         RequestBody body = request().body();
@@ -62,7 +63,7 @@ public class JavaBodyParsers extends WithApplication {
                         }
                     }
                     //#default-parser
-                }, fakeRequest().withJsonBody(Json.toJson("foo")))),
+                }, fakeRequest().bodyJson(Json.toJson("foo"))).status(),
                 equalTo(400));
     }
 
@@ -72,7 +73,8 @@ public class JavaBodyParsers extends WithApplication {
         for (int i = 0; i < 1100; i++) {
             body.append("1234567890");
         }
-        assertThat(status(callWithStringBody(new MockJavaAction() {
+        Materializer mat = app.injector().instanceOf(Materializer.class);
+        assertThat(callWithStringBody(new MockJavaAction() {
                     //#max-length
                     // Accept only 10KB of data.
                     @BodyParser.Of(value = BodyParser.Text.class, maxLength = 10 * 1024)
@@ -80,7 +82,7 @@ public class JavaBodyParsers extends WithApplication {
                         return ok("Got body: " + request().body().asText());
                     }
                     //#max-length
-                }, fakeRequest(), body.toString())),
+                }, fakeRequest(), body.toString(), mat).status(),
                 equalTo(413));
     }
 

@@ -1,7 +1,9 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api.libs.iteratee
+
+import java.nio.file.Files
 
 import org.specs2.mutable._
 import java.io.{ ByteArrayInputStream, File, FileOutputStream, OutputStream }
@@ -23,7 +25,6 @@ object EnumeratorsSpec extends Specification
         val e = e1 interleave e2
         val kk = e |>>> Iteratee.fold(List.empty[Int])((r, e: List[Int]) => r ++ e)(foldEC)
         val result = Await.result(kk, Duration.Inf)
-        println("interleaved enumerators result is: " + result)
         result.diff(Seq(1, 2, 3, 4, 5, 6, 7, 8)) must equalTo(Seq())
       }
     }
@@ -302,6 +303,24 @@ object EnumeratorsSpec extends Specification
           mustEnumerateTo(s)(enumerator)
         } finally {
           f.delete()
+        }
+      }
+    }
+  }
+
+  "Enumerator.fromPath" should {
+    "read bytes from a path" in {
+      mustExecute(3) { fromPathEC =>
+        val f = Files.createTempFile("EnumeratorSpec", "fromPath")
+        try {
+          val s = "hello"
+          val out = Files.newOutputStream(f)
+          out.write(s.getBytes)
+          out.close()
+          val enumerator = Enumerator.fromPath(f)(fromPathEC).map(new String(_))
+          mustEnumerateTo(s)(enumerator)
+        } finally {
+          Files.delete(f)
         }
       }
     }

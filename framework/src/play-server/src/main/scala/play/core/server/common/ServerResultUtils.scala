@@ -1,122 +1,151 @@
 /*
- * Copyright (C) 2009-2014 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.core.server.common
 
-import play.api._
+import akka.stream.Materializer
+import akka.stream.scaladsl.Sink
+import akka.util.ByteString
 import play.api.mvc._
+import play.api.http.{ Status, HttpEntity, HttpProtocol }
 import play.api.http.HeaderNames._
-import play.api.libs.iteratee._
-import scala.concurrent.{ Future, Promise }
 
 object ServerResultUtils {
 
-  /** Save allocation by caching an empty array */
-  private val emptyBytes = new Array[Byte](0)
-
-  sealed trait ResultStreaming
-  final case class CannotStream(reason: String, alternativeResult: Result) extends ResultStreaming
-  final case class StreamWithClose(enum: Enumerator[Array[Byte]]) extends ResultStreaming
-  final case class StreamWithKnownLength(enum: Enumerator[Array[Byte]]) extends ResultStreaming
-  final case class StreamWithStrictBody(body: Array[Byte]) extends ResultStreaming
-  final case class UseExistingTransferEncoding(transferEncodedEnum: Enumerator[Array[Byte]]) extends ResultStreaming
-  final case class PerformChunkedTransferEncoding(enum: Enumerator[Array[Byte]]) extends ResultStreaming
-
   /**
-   * Analyze the Result and determine how best to send it. This may involve looking at
-   * headers, buffering the enumerator, etc. The returned value will indicate how to
-   * stream the result and will provide an Enumerator or Array with the result body
-   * that should be streamed. CannotStream will be returned if the Result cannot be
-   * streamed to the given client. This can happen if a result requires Transfer-Encoding
-   * but the client uses HTTP 1.0. It can also happen if there is an error in the
-   * Result headers.
+   * Determine whether the connection should be closed, and what header, if any, should be added to the response.
    */
-  def determineResultStreaming(result: Result, isHttp10: Boolean): Future[ResultStreaming] = {
-
-    result match {
-      case _ if result.header.headers.exists(_._2 == null) =>
-        Future.successful(CannotStream(
-          "A header was set to null",
-          Results.InternalServerError("")
-        ))
-      case _ if (result.connection == HttpConnection.Close) =>
-        Future.successful(StreamWithClose(result.body))
-      case _ if (result.header.headers.contains(TRANSFER_ENCODING)) =>
-        if (isHttp10) {
-          Future.successful(CannotStream(
-            "Chunked response to HTTP/1.0 request",
-            Results.HttpVersionNotSupported("The response to this request is chunked and hence requires HTTP 1.1 to be sent, but this is a HTTP 1.0 request.")
-          ))
-        } else {
-          Future.successful(UseExistingTransferEncoding(result.body))
-        }
-      case _ if (result.header.headers.contains(CONTENT_LENGTH)) =>
-        Future.successful(StreamWithKnownLength(result.body))
-      case _ =>
-        import play.api.libs.iteratee.Execution.Implicits.trampoline
-        val bodyReadAhead = readAheadOne(result.body >>> Enumerator.eof)
-        bodyReadAhead.map {
-          case Left(bodyOption) =>
-            val body = bodyOption.getOrElse(emptyBytes)
-            StreamWithStrictBody(body)
-          case Right(bodyEnum) =>
-            if (isHttp10) {
-              StreamWithClose(bodyEnum) // HTTP 1.0 doesn't support chunked encoding
-            } else {
-              PerformChunkedTransferEncoding(bodyEnum)
-            }
-        }
-    }
-
-  }
-
-  /**
-   * Start reading an Enumerator and see if it is only zero or one
-   * elements long.
-   * - If zero-length, return Left(None).
-   * - If one-length, return the element in Left(Some(el))
-   * - If more than one element long, return Right(enumerator) where
-   *   enumerator is an Enumerator that contains *all* the input. Any
-   *   already-read elements will still be included in this Enumerator.
-   */
-  def readAheadOne[A](enum: Enumerator[A]): Future[Either[Option[A], Enumerator[A]]] = {
-    import Execution.Implicits.trampoline
-    val result = Promise[Either[Option[A], Enumerator[A]]]()
-    val it: Iteratee[A, Unit] = for {
-      taken <- Iteratee.takeUpTo(1)
-      emptyAfterTaken <- Iteratee.isEmpty
-      _ <- {
-        if (emptyAfterTaken) {
-          assert(taken.length <= 1)
-          result.success(Left(taken.headOption))
-          Done[A, Unit](())
-        } else {
-          val (remainingIt, remainingEnum) = Concurrent.joined[A]
-          result.success(Right(Enumerator.enumerate(taken) >>> remainingEnum))
-          remainingIt
-        }
+  def determineConnectionHeader(request: RequestHeader, result: Result): ConnectionHeader = {
+    if (request.version == HttpProtocol.HTTP_1_1) {
+      if (result.header.headers.get(CONNECTION).exists(_.equalsIgnoreCase(CLOSE))) {
+        // Close connection, header already exists
+        DefaultClose
+      } else if ((result.body.isInstanceOf[HttpEntity.Streamed] && result.body.contentLength.isEmpty)
+        || request.headers.get(CONNECTION).exists(_.equalsIgnoreCase(CLOSE))) {
+        // We need to close the connection and set the header
+        SendClose
+      } else {
+        DefaultKeepAlive
       }
-    } yield ()
-    enum(it)
-    result.future
+    } else {
+      if (result.header.headers.get(CONNECTION).exists(_.equalsIgnoreCase(CLOSE))) {
+        DefaultClose
+      } else if ((result.body.isInstanceOf[HttpEntity.Streamed] && result.body.contentLength.isEmpty) ||
+        request.headers.get(CONNECTION).forall(!_.equalsIgnoreCase(KEEP_ALIVE))) {
+        DefaultClose
+      } else {
+        SendKeepAlive
+      }
+    }
   }
 
-  def cleanFlashCookie(requestHeader: RequestHeader, result: Result): Result = {
-    val header = result.header
+  /**
+   * Validate the result.
+   *
+   * Returns the validated result, which may be an error result if validation failed.
+   */
+  def validateResult(request: RequestHeader, result: Result)(implicit mat: Materializer): Result = {
+    if (request.version == HttpProtocol.HTTP_1_0 && result.body.isInstanceOf[HttpEntity.Chunked]) {
+      cancelEntity(result.body)
+      Results.Status(Status.HTTP_VERSION_NOT_SUPPORTED)
+        .apply("The response to this request is chunked and hence requires HTTP 1.1 to be sent, but this is a HTTP 1.0 request.")
+        .withHeaders(CONNECTION -> CLOSE)
+    } else if (!mayHaveEntity(result.header.status) && !result.body.isKnownEmpty) {
+      cancelEntity(result.body)
+      result.copy(body = HttpEntity.Strict(ByteString.empty, result.body.contentType))
+    } else {
+      result
+    }
+  }
 
-    val flashCookie = {
-      header.headers.get(SET_COOKIE)
-        .map(Cookies.decode(_))
-        .flatMap(_.find(_.name == Flash.COOKIE_NAME)).orElse {
-          Option(requestHeader.flash).filterNot(_.isEmpty).map { _ =>
-            Flash.discard.toCookie
-          }
-        }
+  private def mayHaveEntity(status: Int) =
+    status != Status.NO_CONTENT && status != Status.NOT_MODIFIED
+
+  /**
+   * Cancel the entity.
+   *
+   * While theoretically, an Akka streams Source is not supposed to hold resources, in practice, this is very often not
+   * the case, for example, the response from an Akka HTTP client may have an associated Source that must be consumed
+   * (or cancelled) before the associated connection can be returned to the connection pool.
+   */
+  def cancelEntity(entity: HttpEntity)(implicit mat: Materializer) = {
+    entity match {
+      case HttpEntity.Chunked(chunks, _) => chunks.runWith(Sink.cancelled)
+      case HttpEntity.Streamed(data, _, _) => data.runWith(Sink.cancelled)
+      case _ =>
+    }
+  }
+
+  /**
+   * The connection header logic to use for the result.
+   */
+  sealed trait ConnectionHeader {
+    def willClose: Boolean
+    def header: Option[String]
+  }
+  /**
+   * A `Connection: keep-alive` header should be sent. Used to
+   * force an HTTP 1.0 connection to remain open.
+   */
+  case object SendKeepAlive extends ConnectionHeader {
+    override def willClose = false
+    override def header = Some(KEEP_ALIVE)
+  }
+  /**
+   * A `Connection: close` header should be sent. Used to
+   * force an HTTP 1.1 connection to close.
+   */
+  case object SendClose extends ConnectionHeader {
+    override def willClose = true
+    override def header = Some(CLOSE)
+  }
+  /**
+   * No `Connection` header should be sent. Used on an HTTP 1.0
+   * connection where the default behavior is to close the connection,
+   * or when the response already has a Connection: close header.
+   */
+  case object DefaultClose extends ConnectionHeader {
+    override def willClose = true
+    override def header = None
+  }
+  /**
+   * No `Connection` header should be sent. Used on an HTTP 1.1
+   * connection where the default behavior is to keep the connection
+   * open.
+   */
+  case object DefaultKeepAlive extends ConnectionHeader {
+    override def willClose = false
+    override def header = None
+  }
+
+  // Values for the Connection header
+  private val KEEP_ALIVE = "keep-alive"
+  private val CLOSE = "close"
+
+  /**
+   * Update the result's Set-Cookie header so that it removes any Flash cookies we received
+   * in the incoming request.
+   */
+  def cleanFlashCookie(requestHeader: RequestHeader, result: Result): Result = {
+    val optResultFlashCookies: Option[_] = result.header.headers.get(SET_COOKIE).flatMap { setCookieValue: String =>
+      Cookies.decodeSetCookieHeader(setCookieValue).find(_.name == Flash.COOKIE_NAME)
     }
 
-    flashCookie.map { newCookie =>
-      result.withHeaders(SET_COOKIE -> Cookies.merge(header.headers.get(SET_COOKIE).getOrElse(""), Seq(newCookie)))
-    }.getOrElse(result)
+    if (optResultFlashCookies.isDefined) {
+      // We're already setting a flash cookie in the result, just pass that
+      // through unchanged
+      result
+    } else {
+      val requestFlash: Flash = requestHeader.flash
+      if (requestFlash.isEmpty) {
+        // Neither incoming nor outgoing flash cookies; nothing to do
+        result
+      } else {
+        // We got incoming flash cookies, but there are no outgoing flash cookies,
+        // so we need to clear the cookies for the next request
+        result.discardingCookies(Flash.discard)
+      }
+    }
   }
 
   /**
@@ -127,17 +156,21 @@ object ServerResultUtils {
    * handle combined headers. (Also RFC6265 says multiple headers shouldn't
    * be folded together, which Play's API unfortunately  does.)
    */
-  def splitHeadersIntoSeq(headers: Map[String, String]): Seq[(String, String)] = {
-    headers.to[Seq].flatMap {
-      case (SET_COOKIE, value) => {
-        val cookieParts: Seq[Cookie] = Cookies.decode(value)
-        cookieParts.map { cookiePart =>
-          (SET_COOKIE, Cookies.encode(Seq(cookiePart)))
-        }
+  def splitSetCookieHeaders(headers: Map[String, String]): Iterable[(String, String)] = {
+    if (headers.contains(SET_COOKIE)) {
+      // Rewrite the headers with Set-Cookie split into separate headers
+      headers.to[Seq].flatMap {
+        case (SET_COOKIE, value) =>
+          val cookieParts = Cookies.SetCookieHeaderSeparatorRegex.split(value)
+          cookieParts.map { cookiePart =>
+            SET_COOKIE -> cookiePart
+          }
+        case (name, value) =>
+          Seq((name, value))
       }
-      case (name, value) =>
-        Seq((name, value))
+    } else {
+      // No Set-Cookie header so we can just use the headers as they are
+      headers
     }
   }
-
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api.libs.json
 
@@ -19,6 +19,12 @@ object JsPathSpec extends Specification {
       val obj = Json.obj("key1" -> Json.obj("key11" -> "value11"), "key2" -> "value2")
 
       (JsPath \ "key1" \ "key11")(obj) must equalTo(Seq(JsString("value11")))
+    }
+
+    "retrieve path with array index" in {
+      val obj = Json.obj("key1" -> Json.arr(Json.obj("key11" -> "value11")))
+
+      (JsPath \ "key1" \ 0 \ "key11")(obj) must equalTo(Seq(JsString("value11")))
     }
 
     "retrieve 1-level recursive path" in {

@@ -1,8 +1,10 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api
 
+import akka.stream.Materializer
+import play.api.i18n.MessagesApi
 import play.utils.Threads
 
 import java.io._
@@ -83,10 +85,11 @@ object Play {
 
     _currentApp = app
 
-    // Ensure routes are eagerly loaded, so that the reverse routers are correctly initialised before plugins are
-    // started.
-    app.routes
     Threads.withContextClassLoader(classloader(app)) {
+      // Ensure routes are eagerly loaded, so that the reverse routers are
+      // correctly initialised before plugins are started.
+      app.routes
+
       app.plugins.foreach(_.onStart())
     }
 
@@ -190,7 +193,7 @@ object Play {
   /**
    * Returns the current application router.
    */
-  def routes(implicit app: Application): play.core.Router.Routes = app.routes
+  def routes(implicit app: Application): play.api.routing.Router = app.routes
 
   /**
    * Returns the current application global settings.
@@ -220,12 +223,23 @@ object Play {
   /**
    * Returns the name of the cookie that can be used to permanently set the user's language.
    */
-  def langCookieName(implicit app: Application): String = {
-    app.configuration.getString("play.modules.i18n.langCookieName").orElse {
-      app.configuration.getString("application.lang.cookie").map { name =>
-        Logger.warn("application.lang.cookie is deprecated, use play.modules.i18n.langCookieName instead")
-        name
-      }
-    }.getOrElse("PLAY_LANG")
-  }
+  def langCookieName(implicit messagesApi: MessagesApi): String =
+    messagesApi.langCookieName
+
+  /**
+   * Returns whether the language cookie should have the secure flag set.
+   */
+  def langCookieSecure(implicit messagesApi: MessagesApi): Boolean =
+    messagesApi.langCookieSecure
+
+  /**
+   * Returns whether the language cookie should have the HTTP only flag set.
+   */
+  def langCookieHttpOnly(implicit messagesApi: MessagesApi): Boolean =
+    messagesApi.langCookieHttpOnly
+
+  /**
+   * A convenient function for getting an implicit materializer from the current application
+   */
+  implicit def materializer(implicit app: Application): Materializer = app.materializer
 }

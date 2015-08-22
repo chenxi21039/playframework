@@ -1,9 +1,10 @@
 
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package scalaguide.cache {
 
+import akka.stream.ActorMaterializer
 import org.junit.runner.RunWith
 import org.specs2.runner.JUnitRunner
 
@@ -76,7 +77,7 @@ class ScalaCacheSpec extends PlaySpecification with Controller {
     }
 
     "bind multiple" in {
-      val app = FakeApplication(additionalConfiguration = Map("play.modules.cache.bindCaches" -> Seq("session-cache")))
+      val app = FakeApplication(additionalConfiguration = Map("play.cache.bindCaches" -> Seq("session-cache")))
       running(app) {
         app.injector.instanceOf[qualified.Application]
         ok
@@ -86,8 +87,9 @@ class ScalaCacheSpec extends PlaySpecification with Controller {
     "cached page" in {
       val app = FakeApplication()
       running(app) {
+        implicit val mat = ActorMaterializer()(app.actorSystem)
         val cachedApp = app.injector.instanceOf[cachedaction.Application1]
-        val result = cachedApp.index(FakeRequest()).run
+        val result = cachedApp.index(FakeRequest()).run()
         status(result) must_== 200
       }
     }
@@ -103,10 +105,11 @@ class ScalaCacheSpec extends PlaySpecification with Controller {
     "control cache" in {
       val app = FakeApplication()
       running(app) {
+        implicit val mat = ActorMaterializer()(app.actorSystem)
         val cachedApp = app.injector.instanceOf[cachedaction.Application1]
-        val result0 = cachedApp.get(1)(FakeRequest("GET", "/resource/1")).run
+        val result0 = cachedApp.get(1)(FakeRequest("GET", "/resource/1")).run()
         status(result0) must_== 200
-        val result1 = cachedApp.get(-1)(FakeRequest("GET", "/resource/-1")).run
+        val result1 = cachedApp.get(-1)(FakeRequest("GET", "/resource/-1")).run()
         status(result1) must_== 404
       }
 
@@ -115,10 +118,11 @@ class ScalaCacheSpec extends PlaySpecification with Controller {
     "control cache" in {
       val app = FakeApplication()
       running(app) {
+        implicit val mat = ActorMaterializer()(app.actorSystem)
         val cachedApp = app.injector.instanceOf[cachedaction.Application2]
-        val result0 = cachedApp.get(1)(FakeRequest("GET", "/resource/1")).run
+        val result0 = cachedApp.get(1)(FakeRequest("GET", "/resource/1")).run()
         status(result0) must_== 200
-        val result1 = cachedApp.get(2)(FakeRequest("GET", "/resource/2")).run
+        val result1 = cachedApp.get(2)(FakeRequest("GET", "/resource/2")).run()
         status(result1) must_== 404
       }
     }
@@ -133,8 +137,10 @@ class ScalaCacheSpec extends PlaySpecification with Controller {
   }
 
   def assertAction[A, T: AsResult](action: EssentialAction, request: => Request[A] = FakeRequest(), expectedResponse: Int = OK)(assertions: Future[Result] => T) = {
-    running(FakeApplication(additionalConfiguration = Map("application.secret" -> "pass"))) {
-      val result = action(request).run
+    val app = FakeApplication()
+    running(app) {
+      implicit val mat = ActorMaterializer()(app.actorSystem)
+      val result = action(request).run()
       status(result) must_== expectedResponse
       assertions(result)
     }

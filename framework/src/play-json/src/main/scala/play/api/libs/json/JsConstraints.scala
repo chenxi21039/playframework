@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api.libs.json
 
@@ -137,7 +137,7 @@ trait ConstraintReads {
     })
 
   def email(implicit reads: Reads[String]): Reads[String] =
-    pattern("""\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}\b""".r, "error.email")
+    pattern("""^[a-zA-Z0-9\.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$""".r, "error.email")
 
   def verifying[A](cond: A => Boolean)(implicit rds: Reads[A]) =
     filter[A](ValidationError("error.invalid"))(cond)(rds)
@@ -204,7 +204,7 @@ trait ConstraintWrites {
     Writes[JsValue] { js => wrs.writes(fixed) }
 
   def pruned[A](implicit w: Writes[A]): Writes[A] = new Writes[A] {
-    def writes(a: A): JsValue = JsUndefined("pruned")
+    def writes(a: A): JsValue = JsNull
   }
 
   def list[A](implicit writes: Writes[A]): Writes[List[A]] = Writes.traversableWrites[A]

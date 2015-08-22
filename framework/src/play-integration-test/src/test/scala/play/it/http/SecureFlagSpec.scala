@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.it.http
 
@@ -49,7 +49,7 @@ trait SecureFlagSpec extends PlaySpecification with ServerIntegrationSpecificati
     "show that requests are secure in the absence of X_FORWARDED_PROTO" in withServer(secureFlagAction, Some(sslPort)) { _ =>
       val conn = createConn(sslPort)
       Source.fromInputStream(conn.getContent.asInstanceOf[InputStream]).getLines().next must_== "true"
-    }.pendingUntilAkkaHttpFixed
+    }.pendingUntilAkkaHttpFixed // All these tests are waiting on Akka HTTP to support SSL
     "show that requests are secure in the absence of X_FORWARDED_PROTO" in withServer(secureFlagAction, Some(sslPort)) { _ =>
       val conn = createConn(sslPort)
       Source.fromInputStream(conn.getContent.asInstanceOf[InputStream]).getLines().next must_== "true"
@@ -78,7 +78,7 @@ trait SecureFlagSpec extends PlaySpecification with ServerIntegrationSpecificati
       )
       responses.length must_== 1
       responses(0).body must_== Left("true")
-    }.pendingUntilAkkaHttpFixed
+    }
     "not show that requests are secure if X_FORWARDED_PROTO is http" in withServer(secureFlagAction) { port =>
       val responses = BasicHttpClient.makeRequests(port)(
         BasicRequest("GET", "/", "HTTP/1.1", Map((X_FORWARDED_PROTO, "http")), "foo")

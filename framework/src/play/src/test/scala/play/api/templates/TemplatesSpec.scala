@@ -1,16 +1,14 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api.templates
 
+import akka.util.ByteString
 import org.specs2.mutable._
-import play.api.http.Writeable
-import play.api.libs.iteratee._
+import play.api.http.{ HttpEntity, Writeable }
 import play.api.mvc.Results
 import play.core.j.JavaResults
 import play.mvc.{ Results => JResults }
-import scala.concurrent.Await
-import scala.concurrent.duration.Duration
 
 object TemplatesSpec extends Specification {
   "toHtmlArgs" should {
@@ -39,13 +37,14 @@ object TemplatesSpec extends Specification {
     }
 
     "have Java result body trimmed" in {
-      consume(JResults.ok(xml).toScala.body) must_== "xml"
+      consume(JResults.ok(xml).asScala.body) must_== "xml"
     }
   }
 
-  def string(bytes: Array[Byte]): String = new String(bytes, "UTF-8")
+  def string(bytes: ByteString): String = bytes.utf8String
 
-  def consume(enumerator: Enumerator[Array[Byte]]): String = {
-    string(Await.result(enumerator |>>> Iteratee.consume[Array[Byte]](), Duration(5, "seconds")))
+  def consume(entity: HttpEntity): String = entity match {
+    case HttpEntity.Strict(data, _) => string(data)
+    case _ => throw new IllegalArgumentException("Expected strict body")
   }
 }

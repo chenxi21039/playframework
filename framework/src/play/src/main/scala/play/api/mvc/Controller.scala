@@ -1,11 +1,10 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api.mvc
 
-import play.api.http._
-import play.api.i18n.{ Messages, Lang }
-import play.api.Play
+import play.api.http.{ ContentTypes, HeaderNames, HttpProtocol, Status }
+import play.api.i18n.Lang
 
 /**
  * Defines utility methods to generate `Action` and `Results` types.
@@ -41,12 +40,12 @@ trait Controller extends Results with BodyParsers with HttpProtocol with Status 
    * For example:
    * {{{
    * def index(name:String) = Action { implicit request =>
-   *   val username = session("username")
+   *   val username = request2session("username")
    *   Ok("Hello " + username)
    * }
    * }}}
    */
-  implicit def request2session(implicit request: RequestHeader) = request.session
+  implicit def request2session(implicit request: RequestHeader): Session = request.session
 
   /**
    * Retrieve the flash scope implicitly from the request.
@@ -54,15 +53,26 @@ trait Controller extends Results with BodyParsers with HttpProtocol with Status 
    * For example:
    * {{{
    * def index(name:String) = Action { implicit request =>
-   *   val message = flash("message")
+   *   val message = request2flash("message")
    *   Ok("Got " + message)
    * }
    * }}}
    */
-  implicit def request2flash(implicit request: RequestHeader) = request.flash
+  implicit def request2flash(implicit request: RequestHeader): Flash = request.flash
 
-  implicit def request2lang(implicit request: RequestHeader) = {
-    Messages.messagesApi.map(_.preferred(request).lang)
+  /**
+   * Retrieve the language implicitly from the request.
+   *
+   * For example:
+   * {{{
+   * def index(name:String) = Action { implicit request =>
+   *   val lang: Lang = request2lang
+   *   Ok("Got " + lang)
+   * }
+   * }}}
+   */
+  implicit def request2lang(implicit request: RequestHeader): Lang = {
+    play.api.Play.maybeApplication.map(app => play.api.i18n.Messages.messagesApiCache(app).preferred(request).lang)
       .getOrElse(request.acceptLanguages.headOption.getOrElse(play.api.i18n.Lang.defaultLang))
   }
 

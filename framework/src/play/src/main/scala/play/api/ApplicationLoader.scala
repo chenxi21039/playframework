@@ -1,12 +1,11 @@
 /*
- * Copyright (C) 2009-2014 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api
 
-import play.api.inject.Injector
 import play.api.inject.guice.GuiceApplicationLoader
 import play.core.{ SourceMapper, WebCommands, DefaultWebCommands }
-import play.utils.{ Threads, Reflect }
+import play.utils.Reflect
 
 /**
  * Loads an application.  This is responsible for instantiating an application given a context.
@@ -18,10 +17,11 @@ import play.utils.{ Threads, Reflect }
  * During dev mode, an ApplicationLoader will be instantiated once, and called once, each time the application is
  * reloaded. In prod mode, the ApplicationLoader will be instantiated and called once when the application is started.
  *
- * Out of the box Play provides one default implementation, the [[play.api.inject.guice.GuiceApplicationLoader]].
+ * Out of the box Play provides a Java and Scala default implementation based on Guice. The Scala implementation is the
+ * [[play.api.inject.guice.GuiceApplicationLoader]].
  *
  * A custom application loader can be configured using the `application.loader` configuration property.
- * Implementations must define a noarg constructor.
+ * Implementations must define a no-arg constructor.
  */
 trait ApplicationLoader {
 
@@ -30,15 +30,6 @@ trait ApplicationLoader {
    */
   def load(context: ApplicationLoader.Context): Application
 
-  /**
-   * Create an injector for runtime DI.
-   *
-   * This can be used by runtime DI providers to provide an injector during testing. The injector should contain all
-   * the components specified by the modules, and should also bind itself.
-   *
-   * If this method is not implemented, FakeApplication will use a NewInstanceInjector instead.
-   */
-  def createInjector(environment: Environment, configuration: Configuration, modules: Seq[Any]): Option[Injector] = None
 }
 
 object ApplicationLoader {
@@ -59,9 +50,26 @@ object ApplicationLoader {
    * Locate and instantiate the ApplicationLoader.
    */
   def apply(context: Context): ApplicationLoader = {
-    context.initialConfiguration.getString("play.application.loader").fold[ApplicationLoader](new GuiceApplicationLoader) { loaderClass =>
-      Reflect.createInstance[ApplicationLoader](loaderClass, context.environment.classLoader)
-    }
+    Reflect.configuredClass[ApplicationLoader, play.ApplicationLoader, GuiceApplicationLoader](
+      context.environment, PlayConfig(context.initialConfiguration), "play.application.loader", classOf[GuiceApplicationLoader].getName
+    ) match {
+        case None =>
+          new GuiceApplicationLoader
+        case Some(Left(scalaClass)) =>
+          scalaClass.newInstance
+        case Some(Right(javaClass)) =>
+          val javaApplicationLoader: play.ApplicationLoader = javaClass.newInstance
+          // Create an adapter from a Java to a Scala ApplicationLoader. This class is
+          // effectively anonymous, but let's give it a name to make debugging easier.
+          class JavaApplicationLoaderAdapter extends ApplicationLoader {
+            override def load(context: ApplicationLoader.Context): Application = {
+              val javaContext = new play.ApplicationLoader.Context(context)
+              val javaApplication = javaApplicationLoader.load(javaContext)
+              javaApplication.getWrappedApplication
+            }
+          }
+          new JavaApplicationLoaderAdapter
+      }
   }
 
   /**
@@ -77,15 +85,13 @@ object ApplicationLoader {
    * @param sourceMapper An optional source mapper.
    */
   def createContext(environment: Environment,
-    initialSettings: Map[String, String] = Map.empty[String, String],
+    initialSettings: Map[String, AnyRef] = Map.empty[String, AnyRef],
     sourceMapper: Option[SourceMapper] = None,
     webCommands: WebCommands = new DefaultWebCommands) = {
-    val configuration = Threads.withContextClassLoader(environment.classLoader) {
-      Configuration.load(environment.rootPath, environment.mode, initialSettings)
-    }
-
+    val configuration = Configuration.load(environment, initialSettings)
     Context(environment, sourceMapper, webCommands, configuration)
   }
+
 }
 
 /**

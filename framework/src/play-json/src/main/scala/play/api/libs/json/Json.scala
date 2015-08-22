@@ -1,10 +1,11 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api.libs.json
 
 import java.io.InputStream
 import play.api.libs.iteratee.Execution.Implicits.defaultExecutionContext
+import play.api.libs.json.jackson.JacksonJson
 
 /**
  * Helper functions to handle JsValues.
@@ -200,7 +201,7 @@ object Json {
    *   )(User)
    * }}}
    */
-  def reads[A] = macro JsMacroImpl.readsImpl[A]
+  def reads[A]: Reads[A] = macro JsMacroImpl.readsImpl[A]
 
   /**
    * Creates a Writes[T] by resolving case class fields & required implcits at COMPILE-time
@@ -220,7 +221,7 @@ object Json {
    *   )(unlift(User.unapply))
    * }}}
    */
-  def writes[A] = macro JsMacroImpl.writesImpl[A]
+  def writes[A]: OWrites[A] = macro JsMacroImpl.writesImpl[A]
 
   /**
    * Creates a Format[T] by resolving case class fields & required implicits at COMPILE-time
@@ -240,6 +241,6 @@ object Json {
    *   )(User.apply, unlift(User.unapply))
    * }}}
    */
-  def format[A] = macro JsMacroImpl.formatImpl[A]
+  def format[A]: OFormat[A] = macro JsMacroImpl.formatImpl[A]
 
 }

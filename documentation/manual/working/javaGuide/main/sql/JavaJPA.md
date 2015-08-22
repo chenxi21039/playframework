@@ -1,4 +1,4 @@
-<!--- Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com> -->
+<!--- Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com> -->
 # Integrating with JPA
 
 ## Adding dependencies to your project
@@ -10,7 +10,7 @@ There is no built-in JPA implementation in Play; you can choose any available im
 ```
 libraryDependencies ++= Seq(
   javaJpa,
-  "org.hibernate" % "hibernate-entitymanager" % "4.3.8.Final" // replace by your jpa implementation
+  "org.hibernate" % "hibernate-entitymanager" % "4.3.9.Final" // replace by your jpa implementation
 )
 ```
 
@@ -64,7 +64,7 @@ public static Result index() {
 }
 ```
 
-If your action perfoms only queries, you can set the `readOnly` attribute to `true`:
+If your action runs only queries, you can set the `readOnly` attribute to `true`:
 
 ```
 @Transactional(readOnly=true)
@@ -82,3 +82,7 @@ public static Company findById(Long id) {
   return JPA.em().find(Company.class, id);
 }
 ```
+
+## Enabling Play database evolutions
+
+Read [[Evolutions]] to find out what Play database evolutions are useful for, and follow the setup instructions for using it.

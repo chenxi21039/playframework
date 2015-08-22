@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api.libs
 
@@ -384,7 +384,7 @@ object MimeTypes {
         pvu=paleovu/x-pv
         pwz=application/vndms-powerpoint
         py=text/x-scriptphyton
-        pyc=applicaiton/x-bytecodepython
+        pyc=application/x-bytecodepython
         qcp=audio/vndqcelp
         qd3=x-world/x-3dmf
         qd3d=x-world/x-3dmf
@@ -412,8 +412,8 @@ object MimeTypes {
         rp=image/vndrn-realpix
         rpm=audio/x-pn-realaudio-plugin
         rt=text/vndrn-realtext
-        rtf=text/richtext
-        rtx=text/richtext
+        rtf=application/rtf
+        rtx=application/rtx
         rv=video/vndrn-realvideo
         s=text/x-asm
         s3m=audio/s3m
@@ -521,6 +521,7 @@ object MimeTypes {
         wb1=application/x-qpro
         wbmp=image/vnd.wap.wbmp
         web=application/vndxara
+        webm=video/webm
         wiz=application/msword
         wk1=application/x-123
         wmf=windows/metafile

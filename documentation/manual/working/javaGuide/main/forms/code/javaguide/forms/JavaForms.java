@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package javaguide.forms;
 
@@ -44,14 +44,14 @@ public class JavaForms extends WithApplication {
         User user = userForm.bind(anyData).get();
         //#bind
 
-        assertThat(user.email, equalTo("bob@gmail.com"));
-        assertThat(user.password, equalTo("secret"));
+        assertThat(user.getEmail(), equalTo("bob@gmail.com"));
+        assertThat(user.getPassword(), equalTo("secret"));
     }
 
     @Test
     public void bindFromRequest() {
         Result result = MockJavaActionHelper.call(new Controller1(),
-                fakeRequest().withFormUrlEncodedBody(ImmutableMap.of("email", "e", "password", "p")));
+                fakeRequest().bodyForm(ImmutableMap.of("email", "e", "password", "p")));
         assertThat(contentAsString(result), equalTo("e"));
     }
 
@@ -62,7 +62,7 @@ public class JavaForms extends WithApplication {
             User user = userForm.bindFromRequest().get();
             //#bind-from-request
 
-            return ok(user.email);
+            return ok(user.getEmail());
         }
     }
 
@@ -104,7 +104,15 @@ public class JavaForms extends WithApplication {
             }
         }
 
-        public String email;
+        private String email;
+
+        public void setEmail(String email) {
+            this.email = email;
+        }
+
+        public String getEmail() {
+            return email;
+        }
 
         //#list-validate
         public List<ValidationError> validate() {
@@ -170,7 +178,7 @@ public class JavaForms extends WithApplication {
     @Test
     public void dynamicForm() {
         Result result = MockJavaActionHelper.call(new Controller3(),
-                fakeRequest().withFormUrlEncodedBody(ImmutableMap.of("firstname", "a", "lastname", "b")));
+                fakeRequest().bodyForm(ImmutableMap.of("firstname", "a", "lastname", "b")));
         assertThat(contentAsString(result), equalTo("Hello a b"));
     }
 
@@ -213,12 +221,20 @@ public class JavaForms extends WithApplication {
 
         Form<WithLocalTime> form = Form.form(WithLocalTime.class);
         WithLocalTime obj = form.bind(ImmutableMap.of("time", "23:45")).get();
-        assertThat(obj.time, equalTo(new LocalTime(23, 45)));
+        assertThat(obj.getTime(), equalTo(new LocalTime(23, 45)));
         assertThat(form.fill(obj).field("time").value(), equalTo("23:45"));
     }
 
     public static class WithLocalTime {
-        public LocalTime time;
+        private LocalTime time;
+
+        public LocalTime getTime() {
+            return time;
+        }
+
+        public void setTime(LocalTime time) {
+            this.time = time;
+        }
     }
 
 }

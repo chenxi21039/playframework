@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2014 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.db;
 
@@ -14,7 +14,7 @@ import com.typesafe.config.ConfigFactory;
 /**
  * Default delegating implementation of the database API.
  */
-public class DefaultDatabase extends Database {
+public class DefaultDatabase implements Database {
 
     private final play.api.db.Database db;
 
@@ -26,14 +26,20 @@ public class DefaultDatabase extends Database {
      * Create a default BoneCP-backed database.
      */
     public DefaultDatabase(String name, Configuration configuration) {
-        this(new play.api.db.PooledDatabase(name, configuration.getWrappedConfiguration()));
+        this(new play.api.db.PooledDatabase(name, new play.api.Configuration(
+                configuration.underlying()
+                        .withFallback(ConfigFactory.defaultReference().getConfig("play.db.prototype"))
+        )));
     }
 
     /**
      * Create a default BoneCP-backed database.
      */
     public DefaultDatabase(String name, Map<String, ? extends Object> config) {
-        this(new play.api.db.PooledDatabase(name, new play.api.Configuration(ConfigFactory.parseMap(config))));
+        this(new play.api.db.PooledDatabase(name, new play.api.Configuration(
+                ConfigFactory.parseMap(config)
+                        .withFallback(ConfigFactory.defaultReference().getConfig("play.db.prototype"))
+        )));
     }
 
     @Override
@@ -96,4 +102,8 @@ public class DefaultDatabase extends Database {
         db.shutdown();
     }
 
+    @Override
+    public play.api.db.Database toScala() {
+        return db;
+    }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api.libs.json
 
@@ -9,17 +9,16 @@ import language.experimental.macros
 
 object JsMacroImpl {
 
-  def formatImpl[A: c.WeakTypeTag](c: Context): c.Expr[Format[A]] =
-    macroImpl[A, Format](c, "format", "inmap", reads = true, writes = true)
+  def formatImpl[A: c.WeakTypeTag](c: Context): c.Expr[OFormat[A]] =
+    macroImpl[A, OFormat, Format](c, "format", "inmap", reads = true, writes = true)
 
   def readsImpl[A: c.WeakTypeTag](c: Context): c.Expr[Reads[A]] =
-    macroImpl[A, Reads](c, "read", "map", reads = true, writes = false)
+    macroImpl[A, Reads, Reads](c, "read", "map", reads = true, writes = false)
 
-  def writesImpl[A: c.WeakTypeTag](c: Context): c.Expr[Writes[A]] =
-    macroImpl[A, Writes](c, "write", "contramap", reads = false, writes = true)
+  def writesImpl[A: c.WeakTypeTag](c: Context): c.Expr[OWrites[A]] =
+    macroImpl[A, OWrites, Writes](c, "write", "contramap", reads = false, writes = true)
 
-  def macroImpl[A, M[_]](c: Context, methodName: String, mapLikeMethod: String, reads: Boolean, writes: Boolean)(implicit atag: c.WeakTypeTag[A], matag: c.WeakTypeTag[M[A]]): c.Expr[M[A]] = {
-
+  def macroImpl[A, M[_], N[_]](c: Context, methodName: String, mapLikeMethod: String, reads: Boolean, writes: Boolean)(implicit atag: c.WeakTypeTag[A], matag: c.WeakTypeTag[M[A]], natag: c.WeakTypeTag[N[A]]): c.Expr[M[A]] = {
     val nullableMethodName = s"${methodName}Nullable"
     val lazyMethodName = s"lazy${methodName.capitalize}"
 
@@ -34,15 +33,21 @@ object JsMacroImpl {
     val companionSymbol = companioned.companionSymbol
     val companionType = companionSymbol.typeSignature
 
-    val libsPkg = Select(Select(Ident(newTermName("play")), newTermName("api")), newTermName("libs"))
-    val jsonPkg = Select(libsPkg, newTermName("json"))
-    val functionalSyntaxPkg = Select(Select(libsPkg, newTermName("functional")), newTermName("syntax"))
-    val utilPkg = Select(jsonPkg, newTermName("util"))
+    def selectTerm(qual: Tree, names: String*) =
+      names.foldLeft(qual)((z, b) => Select(z, newTermName(b)))
 
-    val jsPathSelect = Select(jsonPkg, newTermName("JsPath"))
-    val readsSelect = Select(jsonPkg, newTermName("Reads"))
-    val writesSelect = Select(jsonPkg, newTermName("Writes"))
-    val unliftIdent = Select(functionalSyntaxPkg, newTermName("unlift"))
+    def selectFromRoot(names: String*) =
+      selectTerm(Ident(rootMirror.RootPackage), names: _*)
+
+    val libsPkg = selectFromRoot("play", "api", "libs")
+    val jsonPkg = selectTerm(libsPkg, "json")
+    val functionalSyntaxPkg = selectTerm(libsPkg, "functional", "syntax")
+    val utilPkg = selectTerm(jsonPkg, "util")
+
+    val jsPathSelect = selectTerm(jsonPkg, "JsPath")
+    val readsSelect = selectTerm(jsonPkg, "Reads")
+    val writesSelect = selectTerm(jsonPkg, "Writes")
+    val unliftIdent = selectTerm(functionalSyntaxPkg, "unlift")
     val lazyHelperSelect = Select(utilPkg, newTypeName("LazyHelper"))
 
     val unapply = companionType.declaration(stringToTermName("unapply"))
@@ -120,7 +125,7 @@ object JsMacroImpl {
       }
 
       // builds M implicit from expected type
-      val neededImplicitType = appliedType(matag.tpe.typeConstructor, tpe :: Nil)
+      val neededImplicitType = appliedType(natag.tpe.typeConstructor, tpe :: Nil)
       // infers implicit
       val neededImplicit = c.inferImplicitValue(neededImplicitType)
       Implicit(name, implType, neededImplicit, isRecursive, tpe)
@@ -232,17 +237,9 @@ object JsMacroImpl {
         List(importFunctionalSyntax),
         finalTree
       )
-      //println("block:"+block)
+      //println(s"nonrec block:$block")
       c.Expr[M[A]](block)
     } else {
-      val helper = newTermName("helper")
-      val helperVal = ValDef(
-        Modifiers(),
-        helper,
-        Ident(weakTypeOf[play.api.libs.json.util.LazyHelper[M, A]].typeSymbol),
-        Apply(Ident(newTermName("LazyHelper")), List(finalTree))
-      )
-
       val block = Select(
         Block(
           List(
@@ -294,7 +291,7 @@ object JsMacroImpl {
         newTermName("lazyStuff")
       )
 
-      // println("block:" + block)
+      //println(s"is rec block:$block")
 
       c.Expr[M[A]](block)
     }

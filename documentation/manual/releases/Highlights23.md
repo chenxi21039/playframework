@@ -1,4 +1,4 @@
-<!--- Copyright (C) 2009-2014 Typesafe Inc. <http://www.typesafe.com> -->
+<!--- Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com> -->
 # What's new in Play 2.3
 
 This page highlights the new features of Play 2.3. If you want learn about the changes you need to make to migrate to Play 2.3, check out the [[Play 2.3 Migration Guide|Migration23]].
@@ -25,7 +25,7 @@ All the features that were available with the `play` command are still available
 
 ### Activator distribution
 
-Play is distributed as an Activator distribution that contains all Play's dependencies. You can download this distribution from the [Play download](http://www.playframework.com/download) page.
+Play is distributed as an Activator distribution that contains all Play's dependencies. You can download this distribution from the [Play download](https://www.playframework.com/download) page.
 
 If you prefer, you can also download a minimal (1MB) version of Activator from the [Activator site](https://typesafe.com/activator). Look for the "mini" distribution on the download page. The minimal version of Activator will only download dependencies when they're needed.
 
@@ -85,7 +85,7 @@ We've worked on Java performance. Compared to Play 2.2, throughput of simple Jav
 
 Some of these changes also improved Scala performance, but Java had the biggest performance gains and was the main focus of our work.
 
-Thankyou to [YourKit](http://yourkit.com) for supplying the Play team with licenses to make this work possible.
+Thankyou to [YourKit](https://www.yourkit.com/) for supplying the Play team with licenses to make this work possible.
 
 ## Scala 2.11
 

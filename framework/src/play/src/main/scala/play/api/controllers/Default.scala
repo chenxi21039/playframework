@@ -1,11 +1,13 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package controllers
 
-import play.api._
+import javax.inject.Inject
+
 import play.api.mvc._
-import play.api.libs._
+
+object Default extends Default
 
 /**
  * Default actions ready to use as is from your routes file.
@@ -18,7 +20,7 @@ import play.api.libs._
  * GET   /xxx             controllers.Default.error
  * }}}
  */
-object Default extends Controller {
+class Default @Inject() () extends Controller {
 
   /**
    * Returns a 501 NotImplemented response.

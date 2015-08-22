@@ -1,8 +1,9 @@
+<!--- Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com> -->
 # The Play WS API
 
 Sometimes we would like to call other HTTP services from within a Play application. Play supports this via its [WS library](api/java/play/libs/ws/package-summary.html), which provides a way to make asynchronous HTTP calls.
 
-There are two important parts to using the WS API: making a request, and processing the response.  We'll discuss how to make both GET and POST HTTP requests first, and then show how to process the response from WS.  Finally, we'll discuss some common use cases.
+There are two important parts to using the WS API: making a request, and processing the response. We'll discuss how to make both GET and POST HTTP requests first, and then show how to process the response from the WS. Finally, we'll discuss some common use cases.
 
 ## Making a Request
 
@@ -18,15 +19,15 @@ Now any controller or component that wants to use WS will have to add the follow
 
 @[ws-controller](code/javaguide/ws/Application.java)
 
-To build an HTTP request, you start with `WS.url()` to specify the URL.
+To build an HTTP request, you start with `ws.url()` to specify the URL.
 
 @[ws-holder](code/javaguide/ws/JavaWS.java)
 
-This returns a [`WSRequestHolder`](api/java/play/libs/ws/WSRequestHolder.html) that you can use to specify various HTTP options, such as setting headers. You can chain calls together to construct complex requests.
+This returns a [`WSRequest`](api/java/play/libs/ws/WSRequest.html) that you can use to specify various HTTP options, such as setting headers. You can chain calls together to construct complex requests.
 
 @[ws-complex-holder](code/javaguide/ws/JavaWS.java)
 
-You end by calling a method corresponding to the HTTP method you want to use.  This ends the chain, and uses all the options defined on the built request in the `WSRequestHolder`.
+You end by calling a method corresponding to the HTTP method you want to use.  This ends the chain, and uses all the options defined on the built request in the [`WSRequest`](api/java/play/libs/ws/WSRequest.html).
 
 @[ws-get](code/javaguide/ws/JavaWS.java)
 
@@ -58,9 +59,9 @@ For example, if you are sending plain text in a particular format, you may want 
 
 @[ws-header-content-type](code/javaguide/ws/JavaWS.java)
 
-### Request with time out
+### Request with timeout
 
-If you wish to specify a request timeout, you can use `setTimeout` to set a value in milliseconds.
+If you wish to specify a request timeout, you can use `setRequestTimeout` to set a value in milliseconds. A value of `-1` can be used to set an infinite timeout. 
 
 @[ws-timeout](code/javaguide/ws/JavaWS.java)
 
@@ -86,31 +87,19 @@ Working with the [`WSResponse`](api/java/play/libs/ws/WSResponse.html) is done b
 
 You can process the response as a `JsonNode` by calling `response.asJson()`.
 
-Java
-: @[ws-response-json](code/javaguide/ws/JavaWS.java)
-
-Java 8
-: @[ws-response-json](java8code/java8guide/ws/JavaWS.java)
+@[ws-response-json](code/javaguide/ws/JavaWS.java)
 
 ### Processing a response as XML
 
 Similarly, you can process the response as XML by calling `response.asXml()`.
 
-Java
-: @[ws-response-xml](code/javaguide/ws/JavaWS.java)
-
-Java 8
-: @[ws-response-xml](java8code/java8guide/ws/JavaWS.java)
+@[ws-response-xml](code/javaguide/ws/JavaWS.java)
 
 ### Processing large responses
 
 When you are downloading a large file or document, `WS` allows you to get the response body as an `InputStream` so you can process the data without loading the entire content into memory at once.
 
-Java
-: @[ws-response-input-stream](code/javaguide/ws/JavaWS.java)
-
-Java 8
-: @[ws-response-input-stream](java8code/java8guide/ws/JavaWS.java)
+@[ws-response-input-stream](code/javaguide/ws/JavaWS.java)
 
 This example will read the response body and write it to a file in buffered increments.
 
@@ -120,40 +109,28 @@ This example will read the response body and write it to a file in buffered incr
 
 You can chain WS calls by using `flatMap`.
 
-Java
-: @[ws-composition](code/javaguide/ws/JavaWS.java)
-
-Java 8
-: @[ws-composition](java8code/java8guide/ws/JavaWS.java)
+@[ws-composition](code/javaguide/ws/JavaWS.java)
 
 ### Exception recovery
 If you want to recover from an exception in the call, you can use `recover` or `recoverWith` to substitute a response.
 
-Java
-: @[ws-recover](code/javaguide/ws/JavaWS.java)
-
-Java 8
-: @[ws-recover](java8code/java8guide/ws/JavaWS.java)
+@[ws-recover](code/javaguide/ws/JavaWS.java)
 
 ### Using in a controller
 
 You can map a `Promise<WSResponse>` to a `Promise<Result>` that can be handled directly by the Play server, using the asynchronous action pattern defined in [[Handling Asynchronous Results|JavaAsync]].
 
-Java
-: @[ws-action](code/javaguide/ws/JavaWS.java)
-
-Java 8
-: @[ws-action](java8code/java8guide/ws/JavaWS.java)
+@[ws-action](code/javaguide/ws/JavaWS.java)
 
 ## Using WSClient
 
 WSClient is a wrapper around the underlying [AsyncHttpClient](https://github.com/AsyncHttpClient/async-http-client). It is useful for defining multiple clients with different profiles, or using a mock.
 
-The default client can be called from the WS class:
+The default client can be called from the WSClient class:
 
 @[ws-client](code/javaguide/ws/JavaWS.java)
 
-You can define a WS client directly from code and use this for making requests.  Note that you must follow a particular series of steps to use HTTPS correctly if you are defining a client directly:
+You can instantiate a WSClient directly from code and use this for making requests.  Note that you must follow a particular series of steps to use HTTPS correctly if you are defining a client directly:
 
 @[ws-custom-client-imports](code/javaguide/ws/JavaWS.java)
 
@@ -167,28 +144,46 @@ You can also get access to the underlying `AsyncHttpClient`.
 
 This is important in a couple of cases.  WS has a couple of limitations that require access to the client:
 
-* `WS` does not support multi part form upload directly.  You can use the underlying client with [RequestBuilder.addBodyPart](http://asynchttpclient.github.io/async-http-client/apidocs/com/ning/http/client/RequestBuilder.html).
+* `WS` does not support multi part form upload directly.  You can use the underlying client with [RequestBuilder.addBodyPart](https://asynchttpclient.github.io/async-http-client/apidocs/com/ning/http/client/RequestBuilder.html).
 * `WS` does not support streaming body upload.  In this case, you should use the `FeedableBodyGenerator` provided by AsyncHttpClient.
 
 ## Configuring WS
 
 Use the following properties in `application.conf` to configure the WS client:
 
-* `ws.followRedirects`: Configures the client to follow 301 and 302 redirects *(default is **true**)*.
-* `ws.useProxyProperties`: To use the system http proxy settings(http.proxyHost, http.proxyPort) *(default is **true**)*. 
-* `ws.useragent`: To configure the User-Agent header field.
-* `ws.compressionEnabled`: Set it to true to use gzip/deflater encoding *(default is **false**)*.
+* `play.ws.followRedirects`: Configures the client to follow 301 and 302 redirects *(default is **true**)*.
+* `play.ws.useProxyProperties`: To use the system http proxy settings(http.proxyHost, http.proxyPort) *(default is **true**)*.
+* `play.ws.useragent`: To configure the User-Agent header field.
+* `play.ws.compressionEnabled`: Set it to true to use gzip/deflater encoding *(default is **false**)*.
 
 ### Timeouts
 
 There are 3 different timeouts in WS. Reaching a timeout causes the WS request to interrupt.
 
-* `ws.timeout.connection`: The maximum time to wait when connecting to the remote host *(default is **120 seconds**)*.
-* `ws.timeout.idle`: The maximum time the request can stay idle (connection is established but waiting for more data) *(default is **120 seconds**)*.
-* `ws.timeout.request`: The total time you accept a request to take (it will be interrupted even if the remote host is still sending data) *(default is **none**, to allow stream consuming)*.
+* `play.ws.timeout.connection`: The maximum time to wait when connecting to the remote host *(default is **120 seconds**)*.
+* `play.ws.timeout.idle`: The maximum time the request can stay idle (connection is established but waiting for more data) *(default is **120 seconds**)*.
+* `play.ws.timeout.request`: The total time you accept a request to take (it will be interrupted even if the remote host is still sending data) *(default is **120 seconds**)*.
 
 The request timeout can be overridden for a specific connection with `setTimeout()` (see "Making a Request" section).
 
 ## Configuring WS with SSL
 
 To configure WS for use with HTTP over SSL/TLS (HTTPS), please see [[Configuring WS SSL|WsSSL]].
+
+### Configuring AsyncClientConfig
+
+The following advanced settings can be configured on the underlying AsyncHttpClientConfig.
+Please refer to the [AsyncHttpClientConfig Documentation](https://asynchttpclient.github.io/async-http-client/apidocs/com/ning/http/client/AsyncHttpClientConfig.Builder.html) for more information.
+
+* `play.ws.ning.allowPoolingConnection`
+* `play.ws.ning.allowSslConnectionPool`
+* `play.ws.ning.ioThreadMultiplier`
+* `play.ws.ning.maxConnectionsPerHost`
+* `play.ws.ning.maxConnectionsTotal`
+* `play.ws.ning.maxConnectionLifeTime`
+* `play.ws.ning.idleConnectionInPoolTimeout`
+* `ws.ning.webSocketIdleTimeout`
+* `play.ws.ning.maxNumberOfRedirects`
+* `play.ws.ning.maxRequestRetry`
+* `play.ws.ning.removeQueryParamsOnRedirect`
+* `play.ws.ning.useRawUrl`

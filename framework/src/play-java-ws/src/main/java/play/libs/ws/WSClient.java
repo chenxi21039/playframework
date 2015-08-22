@@ -1,13 +1,32 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.libs.ws;
 
+/**
+ * This is the WS Client interface.
+ */
+public interface WSClient extends java.io.Closeable {
 
-public interface WSClient {
+    /**
+     * The underlying implementation of the client, if any.  You must cast the returned value to the type you want.
+     * @return the backing class.
+     */
+    Object getUnderlying();
 
-    public Object getUnderlying();
+    /**
+     * Returns a WSRequest object representing the URL.  You can append additional
+     * properties on the WSRequest by chaining calls, and execute the request to
+     * return an asynchronous {@code Promise<WSResponse>}.
+     *
+     * @param url the URL to request
+     */
+    WSRequest url(String url);
 
-    WSRequestHolder url(String url);
-
+    /**
+     * Closes this client, and releases underlying resources.
+     *
+     * Use this for manually instantiated clients.
+     */
+    void close();
 }

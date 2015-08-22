@@ -1,10 +1,11 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.libs;
 
 import scala.runtime.AbstractFunction0;
 
+import java.lang.reflect.Array;
 import java.util.*;
 import java.util.concurrent.Callable;
 
@@ -50,6 +51,13 @@ public class Scala {
     }
 
     /**
+     * Converts a Java Collection to a Scala Seq.
+     */
+    public static <A> scala.collection.immutable.Seq<A> asScala(Collection<A> javaCollection) {
+        return scala.collection.JavaConverters.collectionAsScalaIterableConverter(javaCollection).asScala().toList();
+    }
+
+    /**
      * Converts a Java Callable to a Scala Function0.
      */
     public static <A> scala.Function0<A> asScala(final Callable<A> callable) {
@@ -74,6 +82,15 @@ public class Scala {
      */
     public static <T> java.util.List<T> asJava(scala.collection.Seq<T> scalaList) {
         return scala.collection.JavaConverters.seqAsJavaListConverter(scalaList).asJava();
+    }
+
+    /**
+     * Converts a Scala List to an Array.
+     */
+    public static <T> T[] asArray(Class<T> clazz, scala.collection.Seq<T> scalaList) {
+        T[] arr = (T[]) Array.newInstance(clazz, scalaList.length());
+        scalaList.copyToArray(arr);
+        return arr;
     }
 
     /**
@@ -108,7 +125,7 @@ public class Scala {
      * None
      */
     public static <T> scala.Option<T> None() {
-        return scala.Option.apply(null);
+        return (scala.Option<T>) scala.None$.MODULE$;
     }
 
     /**

@@ -3,6 +3,7 @@ package javaguide.http;
 import play.Logger;
 import play.cache.Cached;
 import play.libs.F;
+import play.libs.Json;
 import play.mvc.*;
 
 import java.lang.annotation.ElementType;
@@ -17,7 +18,7 @@ public class JavaActionsComposition extends Controller {
 
     // #verbose-action
     public class VerboseAction extends play.mvc.Action.Simple {
-        public F.Promise<Result> call(Http.Context ctx) throws Throwable {
+        public F.Promise<Result> call(Http.Context ctx) {
             Logger.info("Calling action for " + ctx);
             return delegate.call(ctx);
         }
@@ -50,15 +51,14 @@ public class JavaActionsComposition extends Controller {
 
     // #verbose-annotation-index
     @VerboseAnnotation(false)
-    public Result index() {
+    public Result verboseAnnotationIndex() {
         return ok("It works!");
     }
     // #verbose-annotation-index
 
     // #verbose-annotation-action
     public class VerboseAnnotationAction extends Action<VerboseAnnotation> {
-
-        public F.Promise<Result> call(Http.Context ctx) throws Throwable {
+        public F.Promise<Result> call(Http.Context ctx) {
             if (configuration.value()) {
                 Logger.info("Calling action for " + ctx);
             }
@@ -71,13 +71,21 @@ public class JavaActionsComposition extends Controller {
         public static Integer findById(Integer id) { return id; }
     }
 
-    // #security-action
-    public class SecurityAction extends Action<VerboseAnnotation> {
-        public F.Promise<Result> call(Http.Context ctx) throws Throwable {
+    // #pass-arg-action
+    public class PassArgAction extends play.mvc.Action.Simple {
+        public F.Promise<Result> call(Http.Context ctx) {
             ctx.args.put("user", User.findById(1234));
             return delegate.call(ctx);
         }
     }
-    // #security-action
+    // #pass-arg-action
+
+    // #pass-arg-action-index
+    @With(PassArgAction.class)
+    public static Result passArgIndex() {
+        Object user = ctx().args.get("user");
+        return ok(Json.toJson(user));
+    }
+    // #pass-arg-action-index
 
 }

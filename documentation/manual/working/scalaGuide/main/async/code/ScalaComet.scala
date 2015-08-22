@@ -1,12 +1,14 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package scalaguide.async.scalacomet
 
+import akka.stream.Materializer
 import play.api.mvc._
-import play.api.libs.iteratee.{Enumeratee, Iteratee, Enumerator}
+import play.api.libs.iteratee.{Enumeratee, Enumerator}
 import play.api.test._
 import scala.concurrent.Future
+import scala.concurrent.ExecutionContext.Implicits.global
 import play.api.libs.Comet
 
 object ScalaCometSpec extends PlaySpecification with Controller {
@@ -77,7 +79,9 @@ object ScalaCometSpec extends PlaySpecification with Controller {
 
   }
 
-  def cometMessages(result: Future[Result]):Seq[String] = {
-    await(await(result).body &> Results.dechunk |>>> Iteratee.getChunks).map(bytes => new String(bytes))
+  def cometMessages(result: Future[Result])(implicit mat: Materializer): Seq[String] = {
+    await(await(result).body.dataStream
+      .runFold(Seq.empty[String])((chunks, chunk) => chunks :+ chunk.utf8String)
+    )
   }
 }

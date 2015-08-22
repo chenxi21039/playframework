@@ -1,11 +1,11 @@
-resolvers += "Typesafe repository" at "https://repo.typesafe.com/typesafe/releases/"
-
 addSbtPlugin("com.typesafe.sbt" % "sbt-s3" % "0.5")
 
-val playVersion = Option(System.getProperty("play.version")).getOrElse {
-  println("[\033[31merror\033[0m] No play.version system property specified.\n[\033[31merror\033[0m] Just use the build script to launch SBT and life will be much easier.")
-  System.exit(1)
-  throw new RuntimeException("No play version")
-}
+// Depend on hard coded play-ws version, since we don't need/want the latest, and the system
+// properties from this build interfere with the system properties from Play's build.  This
+// can be updated to something else when needed, but doesn't need to be.
+libraryDependencies += "com.typesafe.play" %% "play-ws" % "2.4.0"
 
-libraryDependencies += "com.typesafe.play" %% "play-ws" % playVersion
+// Add a resources directory, so that we can include a logback configuration, otherwise we
+// get debug logs for everything which is huge.
+resourceDirectories in Compile += baseDirectory.value / "resources"
+resources in Compile ++= (baseDirectory.value / "resources").***.get

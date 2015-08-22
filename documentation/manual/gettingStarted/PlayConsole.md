@@ -1,4 +1,4 @@
-<!--- Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com> -->
+<!--- Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com> -->
 # Using the Play console
 
 ## Launching the console
@@ -50,6 +50,14 @@ In Play you can also compile your application without running the server. Just u
 
 [[images/consoleCompile.png]]
 
+## Running the tests
+
+Like the commands above, you can run your tests without running the server. Just use the `test` command:
+
+```bash
+[my-first-app] $ test
+```
+
 ## Launch the interactive console
 
 Type `console` to enter the interactive Scala console, which allows you to test your code interactively:
@@ -58,10 +66,9 @@ Type `console` to enter the interactive Scala console, which allows you to test 
 [my-first-app] $ console
 ```
 
-To start application inside scala console (e.g to access database):
-```bash
-scala> new play.core.StaticApplication(new java.io.File("."))
-```
+To start application inside scala console (e.g. to access database):
+
+@[consoleapp](code/PlayConsole.scala)
 
 [[images/consoleEval.png]] 
 
@@ -69,13 +76,13 @@ scala> new play.core.StaticApplication(new java.io.File("."))
 
 You can ask Play to start a **JPDA** debug port when starting the console. You can then connect using Java debugger. Use the `activator -jvm-debug <port>` command to do that:
 
-```
+```bash
 $ activator -jvm-debug 9999
 ```
 
 When a JPDA port is available, the JVM will log this line during boot:
 
-```
+```bash
 Listening for transport dt_socket at address: 9999
 ```
 
@@ -83,7 +90,7 @@ Listening for transport dt_socket at address: 9999
 
 The Play console is just a normal sbt console, so you can use sbt features such as **triggered execution**. 
 
-For example, using `~ compile`
+For example, using `~ compile`:
 
 ```bash
 [my-first-app] $ ~ compile
@@ -91,7 +98,7 @@ For example, using `~ compile`
 
 The compilation will be triggered each time you change a source file.
 
-If you are using `~ run`
+If you are using `~ run`:
 
 ```bash
 [my-first-app] $ ~ run
@@ -121,4 +128,8 @@ $ activator run
 (Server started, use Ctrl+D to stop and go back to the console...)
 ```
 
-The application starts directly. When you quit the server using `Ctrl+D`, you will come back to your OS prompt.
+The application starts directly. When you quit the server using `Ctrl+D`, you will come back to your OS prompt. Of course, the **triggered execution** is available here as well:
+
+```bash
+$ activator ~run
+```

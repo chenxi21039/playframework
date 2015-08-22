@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2014 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package javaguide.http;
 
@@ -28,7 +28,7 @@ public class JavaResponse extends WithApplication {
         Result textResult = ok("Hello World!");
         //#text-content-type
 
-        assertThat(header("Content-Type", textResult), containsString("text/plain"));
+        assertThat(textResult.contentType().get(), containsString("text/plain"));
     }
 
     @Test
@@ -39,7 +39,7 @@ public class JavaResponse extends WithApplication {
         Result jsonResult = ok(json);
         //#json-content-type
 
-        assertThat(header("Content-Type", jsonResult), containsString("application/json"));
+        assertThat(jsonResult.contentType().get(), containsString("application/json"));
     }
 
     @Test
@@ -48,24 +48,12 @@ public class JavaResponse extends WithApplication {
         Result htmlResult = ok("<h1>Hello World!</h1>").as("text/html");
         //#custom-content-type
 
-        assertThat(header("Content-Type", htmlResult), containsString("text/html"));
-    }
-
-    @Test
-    public void contextContentType() {
-        assertThat(header("Content-Type", call(new MockJavaAction() {
-            //#context-content-type
-            public Result index() {
-                response().setContentType("text/html");
-                return ok("<h1>Hello World!</h1>");
-            }
-            //#context-content-type
-        }, fakeRequest())), containsString("text/html"));
+        assertThat(htmlResult.contentType().get(), containsString("text/html"));
     }
 
     @Test
     public void responseHeaders() {
-        Map<String, String> headers = headers(call(new MockJavaAction() {
+        Map<String, String> headers = call(new MockJavaAction() {
             //#response-headers
             public Result index() {
                 response().setContentType("text/html");
@@ -74,7 +62,7 @@ public class JavaResponse extends WithApplication {
                 return ok("<h1>Hello World!</h1>");
             }
             //#response-headers
-        }, fakeRequest()));
+        }, fakeRequest()).headers();
         assertThat(headers.get(CACHE_CONTROL), equalTo("max-age=3600"));
         assertThat(headers.get(ETAG), equalTo("xxx"));
     }
@@ -130,15 +118,14 @@ public class JavaResponse extends WithApplication {
 
     @Test
     public void charset() {
-        assertThat(header("Content-Type", call(new MockJavaAction() {
+        assertThat(call(new MockJavaAction() {
                     //#charset
                     public Result index() {
-                        response().setContentType("text/html; charset=iso-8859-1");
-                        return ok("<h1>Hello World!</h1>", "iso-8859-1");
+                        return ok("<h1>Hello World!</h1>", "iso-8859-1").as("text/html; charset=iso-8859-1");
                     }
                     //#charset
-                }, fakeRequest())),
-                equalTo("text/html; charset=iso-8859-1"));
+                }, fakeRequest()).charset().get(),
+                equalTo("iso-8859-1"));
     }
 
 }

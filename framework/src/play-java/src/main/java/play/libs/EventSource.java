@@ -1,10 +1,11 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.libs;
 
+import java.util.function.Consumer;
+
 import com.fasterxml.jackson.databind.JsonNode;
-import org.apache.commons.lang3.StringEscapeUtils;
 import play.mvc.Results.*;
 
 /**
@@ -44,7 +45,7 @@ public abstract class EventSource extends Chunks<String> {
     /**
      * Add a callback to be notified when the client has disconnected.
      */
-    public void onDisconnected(F.Callback0 callback) {
+    public void onDisconnected(Runnable callback) {
         out.onDisconnected(callback);
     }
 
@@ -64,7 +65,7 @@ public abstract class EventSource extends Chunks<String> {
      * @return a new EventSource
      * @throws NullPointerException if the specified callback is null
      */
-    public static EventSource whenConnected(F.Callback<EventSource> callback) {
+    public static EventSource whenConnected(Consumer<EventSource> callback) {
         return new WhenConnectedEventSource(callback);
     }
 
@@ -76,9 +77,9 @@ public abstract class EventSource extends Chunks<String> {
 
         private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(WhenConnectedEventSource.class);
 
-        private final F.Callback<EventSource> callback;
+        private final Consumer<EventSource> callback;
 
-        WhenConnectedEventSource(F.Callback<EventSource> callback) {
+        WhenConnectedEventSource(Consumer<EventSource> callback) {
             super();
             if (callback == null) throw new NullPointerException("EventSource onConnected callback cannot be null");
             this.callback = callback;
@@ -87,7 +88,7 @@ public abstract class EventSource extends Chunks<String> {
         @Override
         public void onConnected() {
             try {
-                callback.invoke(this);
+                callback.accept(this);
             } catch (Throwable e) {
                 logger.error("Exception in EventSource.onConnected", e);
             }

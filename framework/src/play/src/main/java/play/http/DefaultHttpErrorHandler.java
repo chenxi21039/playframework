@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2014 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.http;
 
@@ -7,7 +7,7 @@ import play.*;
 import play.api.OptionalSourceMapper;
 import play.api.UsefulException;
 import play.api.http.HttpErrorHandlerExceptions;
-import play.core.Router;
+import play.api.routing.Router;
 import play.libs.F;
 import play.mvc.Http;
 import play.mvc.Http.*;
@@ -28,11 +28,11 @@ public class DefaultHttpErrorHandler implements HttpErrorHandler {
     private final Option<String> playEditor;
     private final Environment environment;
     private final OptionalSourceMapper sourceMapper;
-    private final Provider<Router.Routes> routes;
+    private final Provider<Router> routes;
 
     @Inject
     public DefaultHttpErrorHandler(Configuration configuration, Environment environment,
-                                   OptionalSourceMapper sourceMapper, Provider<Router.Routes> routes) {
+                                   OptionalSourceMapper sourceMapper, Provider<Router> routes) {
         this.environment = environment;
         this.sourceMapper = sourceMapper;
         this.routes = routes;
@@ -56,9 +56,7 @@ public class DefaultHttpErrorHandler implements HttpErrorHandler {
         } else if (statusCode == 404) {
             return onNotFound(request, message);
         } else if (statusCode >= 400 && statusCode < 500) {
-            return F.Promise.<Result>pure(Results.status(statusCode, views.html.defaultpages.badRequest.render(
-                request.method(), request.uri(), message
-            )));
+            return onOtherClientError(request, statusCode, message);
         } else {
             throw new IllegalArgumentException("onClientError invoked with non client error status code " + statusCode + ": " + message);
         }
@@ -101,6 +99,20 @@ public class DefaultHttpErrorHandler implements HttpErrorHandler {
                     request.method(), request.uri(), Some.apply(routes.get())
             )));
         }
+    }
+
+    /**
+     * Invoked when a client error occurs, that is, an error in the 4xx series, which is not handled 
+     * by any of the other methods in this class already.
+     *
+     * @param request The request that caused the client error.
+     * @param statusCode The error status code.  Must be greater or equal to 400, and less than 500.
+     * @param message The error message.
+     */
+    protected F.Promise<Result> onOtherClientError(RequestHeader request, int statusCode, String message) {
+        return F.Promise.<Result>pure(Results.status(statusCode, views.html.defaultpages.badRequest.render(
+            request.method(), request.uri(), message
+        )));
     }
 
     /**

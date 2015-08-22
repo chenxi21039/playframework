@@ -1,1001 +1,166 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.mvc;
 
-import play.api.libs.iteratee.Concurrent;
+import akka.util.ByteString;
 import play.api.libs.iteratee.Enumerator;
+import play.api.libs.streams.Streams;
 import play.api.mvc.*;
 
-import play.core.j.JavaResults;
-import play.libs.*;
+import play.http.HttpEntity;
 import play.libs.F.*;
 
 import play.twirl.api.Content;
 
 import java.io.*;
 import java.util.*;
+import java.util.function.Consumer;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
+import static play.mvc.Http.Status.*;
+import static play.mvc.Http.HeaderNames.*;
 
 /**
  * Common results.
  */
 public class Results {
 
-    static Codec utf8 = Codec.javaSupported("utf-8");
-    static int defaultChunkSize = 1024 * 8;
+    private static final String UTF8 = "utf-8";
+    private static final int defaultChunkSize = 1024 * 8;
 
     // -- Constructor methods
 
     /**
      * Generates a 501 NOT_IMPLEMENTED simple result.
      */
-    public static Result TODO = new Todo();
+    public static final Result TODO = status(NOT_IMPLEMENTED,
+            views.html.defaultpages.todo.render());
 
     // -- Status
 
     /**
      * Generates a simple result.
      */
-    public static Status status(int status) {
-        return new Status(play.core.j.JavaResults.Status(status));
+    public static StatusHeader status(int status) {
+        return new StatusHeader(status);
     }
 
     /**
      * Generates a simple result.
      */
-    public static Status status(int status, Content content) {
-        return new Status(play.core.j.JavaResults.Status(status), content, utf8);
+    public static Result status(int status, Content content) {
+        return status(status, content, UTF8);
     }
 
     /**
      * Generates a simple result.
      */
-    public static Status status(int status, Content content, String charset) {
-        return new Status(play.core.j.JavaResults.Status(status), content, Codec.javaSupported(charset));
+    public static Result status(int status, Content content, String charset) {
+        if (content == null) {
+            throw new NullPointerException("Null content");
+        }
+        return new Result(status, HttpEntity.fromContent(content, charset));
     }
 
     /**
      * Generates a simple result.
      */
-    public static Status status(int status, String content) {
-        return new Status(play.core.j.JavaResults.Status(status), content, utf8);
+    public static Result status(int status, String content) {
+        return status(status, content, UTF8);
     }
 
     /**
      * Generates a simple result.
      */
-    public static Status status(int status, String content, String charset) {
-        return new Status(play.core.j.JavaResults.Status(status), content, Codec.javaSupported(charset));
+    public static Result status(int status, String content, String charset) {
+        if (content == null) {
+            throw new NullPointerException("Null content");
+        }
+        return new Result(status, HttpEntity.fromString(content, charset));
     }
 
     /**
      * Generates a simple result.
      */
-    public static Status status(int status, JsonNode content) {
-        return new Status(play.core.j.JavaResults.Status(status), content, utf8);
+    public static Result status(int status, JsonNode content) {
+        return status(status, content, UTF8);
     }
 
     /**
      * Generates a simple result.
      */
-    public static Status status(int status, JsonNode content, String charset) {
-        return new Status(play.core.j.JavaResults.Status(status), content, Codec.javaSupported(charset));
+    public static Result status(int status, JsonNode content, String charset) {
+        if (content == null) {
+            throw new NullPointerException("Null content");
+        }
+        return status(status).sendJson(content, charset);
     }
 
     /**
      * Generates a simple result.
      */
-    public static Status status(int status, byte[] content) {
-        return new Status(play.core.j.JavaResults.Status(status), content);
+    public static Result status(int status, byte[] content) {
+        if (content == null) {
+            throw new NullPointerException("Null content");
+        }
+        return new Result(status, new HttpEntity.Strict(ByteString.fromArray(content), Optional.empty()));
+    }
+
+    /**
+     * Generates a simple result.
+     */
+    public static Result status(int status, ByteString content) {
+        if (content == null) {
+            throw new NullPointerException("Null content");
+        }
+        return new Result(status, new HttpEntity.Strict(content, Optional.empty()));
     }
 
     /**
      * Generates a chunked result.
      */
-    public static Status status(int status, InputStream content) {
-        return status(status, content, defaultChunkSize);
+    public static Result status(int status, InputStream content) {
+        return status(status).sendInputStream(content);
     }
 
     /**
      * Generates a chunked result.
      */
-    public static Status status(int status, InputStream content, int chunkSize) {
-        return new Status(play.core.j.JavaResults.Status(status), content, chunkSize);
+    public static Result status(int status, InputStream content, long contentLength) {
+        return status(status).sendInputStream(content, contentLength);
     }
 
     /**
-     * Generates a chunked result.
+     * Generates a result.
      */
-    public static Status status(int status, File content) {
-        return new Status(play.core.j.JavaResults.Status(status), content);
+    public static Result status(int status, File content) {
+        return status(status, content, true);
     }
 
     /**
-     * Generates a simple result.
+     * Generates a result.
      */
-    public static Status status(int status, File content, int chunkSize) {
-        return new Status(play.core.j.JavaResults.Status(status), content, chunkSize);
+    public static Result status(int status, File content, boolean inline) {
+        return status(status).sendFile(content, inline);
     }
 
     /**
-     * Generates a chunked result.
+     * Generates a result.
      */
-    public static Status status(int status, Chunks<?> chunks) {
-        return new Status(play.core.j.JavaResults.Status(status), chunks);
+    public static Result status(int status, File content, String fileName) {
+        return status(status).sendFile(content, fileName);
     }
 
-    // -- OK
-
-    /**
-     * Generates a 200 OK simple result.
-     */
-    public static Status ok() {
-        return new Status(play.core.j.JavaResults.Ok());
-    }
-
-    /**
-     * Generates a 200 OK simple result.
-     */
-    public static Status ok(Content content) {
-        return new Status(play.core.j.JavaResults.Ok(), content, utf8);
-    }
-
-    /**
-     * Generates a 200 OK simple result.
-     */
-    public static Status ok(Content content, String charset) {
-        return new Status(play.core.j.JavaResults.Ok(), content, Codec.javaSupported(charset));
-    }
-
-    /**
-     * Generates a 200 OK simple result.
-     */
-    public static Status ok(String content) {
-        return new Status(play.core.j.JavaResults.Ok(), content, utf8);
-    }
-
-    /**
-     * Generates a 200 OK simple result.
-     */
-    public static Status ok(String content, String charset) {
-        return new Status(play.core.j.JavaResults.Ok(), content, Codec.javaSupported(charset));
-    }
-
-    /**
-     * Generates a 200 OK simple result.
-     */
-    public static Status ok(JsonNode content) {
-        return new Status(play.core.j.JavaResults.Ok(), content, utf8);
-    }
-
-    /**
-     * Generates a 200 OK simple result.
-     */
-    public static Status ok(JsonNode content, String charset) {
-        return new Status(play.core.j.JavaResults.Ok(), content, Codec.javaSupported(charset));
-    }
-
-    /**
-     * Generates a 200 OK simple result.
-     */
-    public static Status ok(byte[] content) {
-        return new Status(play.core.j.JavaResults.Ok(), content);
-    }
-
-    /**
-     * Generates a 200 OK chunked result.
-     */
-    public static Status ok(InputStream content) {
-        return ok(content, defaultChunkSize);
-    }
-
-    /**
-     * Generates a 200 OK chunked result.
-     */
-    public static Status ok(InputStream content, int chunkSize) {
-        return new Status(play.core.j.JavaResults.Ok(), content, chunkSize);
-    }
-
-    /**
-     * Generates a 200 OK file result as an attachment.
-     *
-     * @param content The file to send.
-     */
-    public static Status ok(File content) {
-        return new Status(play.core.j.JavaResults.Ok(), content);
-    }
-
-    /**
-     * Generates a 200 OK file result.
-     *
-     * @param content The file to send.
-     * @param inline Whether the file should be sent inline, or as an attachment.
-     */
-    public static Status ok(File content, boolean inline) {
-        return new Status(JavaResults.Ok(), content, inline);
-    }
-
-    /**
-     * Generates a 200 OK file result as an attachment.
-     *
-     * @param content The file to send.
-     * @param filename The name to send the file as.
-     */
-    public static Status ok(File content, String filename) {
-        return new Status(JavaResults.Ok(), content, true, filename);
-    }
-
-    /**
-     * Generates a 200 OK chunked result.
-     */
-    public static Status ok(Chunks<?> chunks) {
-        return new Status(play.core.j.JavaResults.Ok(), chunks);
-    }
-
-    // -- CREATED
-
-    /**
-     * Generates a 201 CREATED simple result.
-     */
-    public static Status created() {
-        return new Status(play.core.j.JavaResults.Created());
-    }
-
-    /**
-     * Generates a 201 CREATED simple result.
-     */
-    public static Status created(Content content) {
-        return new Status(play.core.j.JavaResults.Created(), content, utf8);
-    }
-
-    /**
-     * Generates a 201 CREATED simple result.
-     */
-    public static Status created(Content content, String charset) {
-        return new Status(play.core.j.JavaResults.Created(), content, Codec.javaSupported(charset));
-    }
-
-    /**
-     * Generates a 201 CREATED simple result.
-     */
-    public static Status created(String content) {
-        return new Status(play.core.j.JavaResults.Created(), content, utf8);
-    }
-
-    /**
-     * Generates a 201 CREATED simple result.
-     */
-    public static Status created(String content, String charset) {
-        return new Status(play.core.j.JavaResults.Created(), content, Codec.javaSupported(charset));
-    }
-
-    /**
-     * Generates a 201 CREATED simple result.
-     */
-    public static Status created(JsonNode content) {
-        return new Status(play.core.j.JavaResults.Created(), content, utf8);
-    }
-
-    /**
-     * Generates a 201 CREATED simple result.
-     */
-    public static Status created(JsonNode content, String charset) {
-        return new Status(play.core.j.JavaResults.Created(), content, Codec.javaSupported(charset));
-    }
-
-    /**
-     * Generates a 201 CREATED simple result.
-     */
-    public static Status created(byte[] content) {
-        return new Status(play.core.j.JavaResults.Created(), content);
-    }
-
-    /**
-     * Generates a 201 CREATED chunked result.
-     */
-    public static Status created(InputStream content) {
-        return created(content, defaultChunkSize);
-    }
-
-    /**
-     * Generates a 201 CREATED chunked result.
-     */
-    public static Status created(InputStream content, int chunkSize) {
-        return new Status(play.core.j.JavaResults.Created(), content, chunkSize);
-    }
-
-    /**
-     * Generates a 201 CREATED file result as an attachment.
-     *
-     * @param content The file to send.
-     */
-    public static Status created(File content) {
-        return new Status(play.core.j.JavaResults.Created(), content);
-    }
-
-    /**
-     * Generates a 201 CREATED file result.
-     *
-     * @param content The file to send.
-     * @param inline Whether the file should be sent inline, or as an attachment.
-     */
-    public static Status created(File content, boolean inline) {
-        return new Status(JavaResults.Created(), content, inline);
-    }
-
-    /**
-     * Generates a 201 CREATED file result as an attachment.
-     *
-     * @param content The file to send.
-     * @param filename The name to send the file as.
-     */
-    public static Status created(File content, String filename) {
-        return new Status(JavaResults.Created(), content, true, filename);
-    }
-
-    /**
-     * Generates a 201 CREATED chunked result.
-     */
-    public static Status created(Chunks<?> chunks) {
-        return new Status(play.core.j.JavaResults.Created(), chunks);
-    }
-
-    // -- NO_CONTENT
-
-    /**
-     * Generates a 204 NO_CONTENT simple result.
-     */
-    public static Status noContent() {
-        return new Status(play.core.j.JavaResults.Status(204));
-    }
-
-    // -- INTERNAL_SERVER_ERROR
-
-    /**
-     * Generates a 500 INTERNAL_SERVER_ERROR simple result.
-     */
-    public static Status internalServerError() {
-        return new Status(play.core.j.JavaResults.InternalServerError());
-    }
-
-    /**
-     * Generates a 500 INTERNAL_SERVER_ERROR simple result.
-     */
-    public static Status internalServerError(Content content) {
-        return new Status(play.core.j.JavaResults.InternalServerError(), content, utf8);
-    }
-
-    /**
-     * Generates a 500 INTERNAL_SERVER_ERROR simple result.
-     */
-    public static Status internalServerError(Content content, String charset) {
-        return new Status(play.core.j.JavaResults.InternalServerError(), content, Codec.javaSupported(charset));
-    }
-
-    /**
-     * Generates a 500 INTERNAL_SERVER_ERROR simple result.
-     */
-    public static Status internalServerError(String content) {
-        return new Status(play.core.j.JavaResults.InternalServerError(), content, utf8);
-    }
-
-    /**
-     * Generates a 500 INTERNAL_SERVER_ERROR simple result.
-     */
-    public static Status internalServerError(String content, String charset) {
-        return new Status(play.core.j.JavaResults.InternalServerError(), content, Codec.javaSupported(charset));
-    }
-
-    /**
-     * Generates a 500 INTERNAL_SERVER_ERROR simple result.
-     */
-    public static Status internalServerError(JsonNode content) {
-        return new Status(play.core.j.JavaResults.InternalServerError(), content, utf8);
-    }
-
-    /**
-     * Generates a 500 INTERNAL_SERVER_ERROR simple result.
-     */
-    public static Status internalServerError(JsonNode content, String charset) {
-        return new Status(play.core.j.JavaResults.InternalServerError(), content, Codec.javaSupported(charset));
-    }
-
-    /**
-     * Generates a 500 INTERNAL_SERVER_ERROR simple result.
-     */
-    public static Status internalServerError(byte[] content) {
-        return new Status(play.core.j.JavaResults.InternalServerError(), content);
-    }
-
-    /**
-     * Generates a 500 INTERNAL_SERVER_ERROR chunked result.
-     */
-    public static Status internalServerError(InputStream content) {
-        return internalServerError(content, defaultChunkSize);
-    }
-
-    /**
-     * Generates a 500 INTERNAL_SERVER_ERROR chunked result.
-     */
-    public static Status internalServerError(InputStream content, int chunkSize) {
-        return new Status(play.core.j.JavaResults.InternalServerError(), content, chunkSize);
-    }
-
-    /**
-     * Generates a 500 INTERNAL_SERVER_ERROR file result as an attachment.
-     *
-     * @param content The file to send.
-     */
-    public static Status internalServerError(File content) {
-        return new Status(play.core.j.JavaResults.InternalServerError(), content);
-    }
-
-    /**
-     * Generates a 500 INTERNAL_SERVER_ERROR file result.
-     *
-     * @param content The file to send.
-     * @param inline Whether the file should be sent inline, or as an attachment.
-     */
-    public static Status internalServerError(File content, boolean inline) {
-        return new Status(JavaResults.InternalServerError(), content, inline);
-    }
-
-    /**
-     * Generates a 500 INTERNAL_SERVER_ERROR file result as an attachment.
-     *
-     * @param content The file to send.
-     * @param filename The name to send the file as.
-     */
-    public static Status internalServerError(File content, String filename) {
-        return new Status(JavaResults.InternalServerError(), content, true, filename);
-    }
-
-    /**
-     * Generates a 500 INTERNAL_SERVER_ERROR chunked result.
-     */
-    public static Status internalServerError(Chunks<?> chunks) {
-        return new Status(play.core.j.JavaResults.InternalServerError(), chunks);
-    }
-
-    // -- NOT_FOUND
-
-    /**
-     * Generates a 404 NOT_FOUND simple result.
-     */
-    public static Status notFound() {
-        return new Status(play.core.j.JavaResults.NotFound());
-    }
-
-    /**
-     * Generates a 404 NOT_FOUND simple result.
-     */
-    public static Status notFound(Content content) {
-        return new Status(play.core.j.JavaResults.NotFound(), content, utf8);
-    }
-
-    /**
-     * Generates a 404 NOT_FOUND simple result.
-     */
-    public static Status notFound(Content content, String charset) {
-        return new Status(play.core.j.JavaResults.NotFound(), content, Codec.javaSupported(charset));
-    }
-
-    /**
-     * Generates a 404 NOT_FOUND simple result.
-     */
-    public static Status notFound(String content) {
-        return new Status(play.core.j.JavaResults.NotFound(), content, utf8);
-    }
-
-    /**
-     * Generates a 404 NOT_FOUND simple result.
-     */
-    public static Status notFound(String content, String charset) {
-        return new Status(play.core.j.JavaResults.NotFound(), content, Codec.javaSupported(charset));
-    }
-
-    /**
-     * Generates a 404 NOT_FOUND simple result.
-     */
-    public static Status notFound(JsonNode content) {
-        return new Status(play.core.j.JavaResults.NotFound(), content, utf8);
-    }
-
-    /**
-     * Generates a 404 NOT_FOUND simple result.
-     */
-    public static Status notFound(JsonNode content, String charset) {
-        return new Status(play.core.j.JavaResults.NotFound(), content, Codec.javaSupported(charset));
-    }
-
-    /**
-     * Generates a 404 NOT_FOUND simple result.
-     */
-    public static Status notFound(byte[] content) {
-        return new Status(play.core.j.JavaResults.NotFound(), content);
-    }
-
-    /**
-     * Generates a 404 NOT_FOUND chunked result.
-     */
-    public static Status notFound(InputStream content) {
-        return notFound(content, defaultChunkSize);
-    }
-
-    /**
-     * Generates a 404 NOT_FOUND chunked result.
-     */
-    public static Status notFound(InputStream content, int chunkSize) {
-        return new Status(play.core.j.JavaResults.NotFound(), content, chunkSize);
-    }
-
-    /**
-     * Generates a 404 NOT_FOUND file result as an attachment.
-     *
-     * @param content The file to send.
-     */
-    public static Status notFound(File content) {
-        return new Status(play.core.j.JavaResults.NotFound(), content);
-    }
-
-    /**
-     * Generates a 404 NOT_FOUND file result.
-     *
-     * @param content The file to send.
-     * @param inline Whether the file should be sent inline, or as an attachment.
-     */
-    public static Status notFound(File content, boolean inline) {
-        return new Status(JavaResults.NotFound(), content, inline);
-    }
-
-    /**
-     * Generates a 404 NOT_FOUND file result as an attachment.
-     *
-     * @param content The file to send.
-     * @param filename The name to send the file as.
-     */
-    public static Status notFound(File content, String filename) {
-        return new Status(JavaResults.NotFound(), content, true, filename);
-    }
-
-    /**
-     * Generates a 404 NOT_FOUND chunked result.
-     */
-    public static Status notFound(Chunks<?> chunks) {
-        return new Status(play.core.j.JavaResults.NotFound(), chunks);
-    }
-
-    // -- FORBIDDEN
-
-    /**
-     * Generates a 403 FORBIDDEN simple result.
-     */
-    public static Status forbidden() {
-        return new Status(play.core.j.JavaResults.Forbidden());
-    }
-
-    /**
-     * Generates a 403 FORBIDDEN simple result.
-     */
-    public static Status forbidden(Content content) {
-        return new Status(play.core.j.JavaResults.Forbidden(), content, utf8);
-    }
-
-    /**
-     * Generates a 403 FORBIDDEN simple result.
-     */
-    public static Status forbidden(Content content, String charset) {
-        return new Status(play.core.j.JavaResults.Forbidden(), content, Codec.javaSupported(charset));
-    }
-
-    /**
-     * Generates a 403 FORBIDDEN simple result.
-     */
-    public static Status forbidden(String content) {
-        return new Status(play.core.j.JavaResults.Forbidden(), content, utf8);
-    }
-
-    /**
-     * Generates a 403 FORBIDDEN simple result.
-     */
-    public static Status forbidden(String content, String charset) {
-        return new Status(play.core.j.JavaResults.Forbidden(), content, Codec.javaSupported(charset));
-    }
-
-    /**
-     * Generates a 403 FORBIDDEN simple result.
-     */
-    public static Status forbidden(JsonNode content) {
-        return new Status(play.core.j.JavaResults.Forbidden(), content, utf8);
-    }
-
-    /**
-     * Generates a 403 FORBIDDEN simple result.
-     */
-    public static Status forbidden(JsonNode content, String charset) {
-        return new Status(play.core.j.JavaResults.Forbidden(), content, Codec.javaSupported(charset));
-    }
-
-    /**
-     * Generates a 403 FORBIDDEN simple result.
-     */
-    public static Status forbidden(byte[] content) {
-        return new Status(play.core.j.JavaResults.Forbidden(), content);
-    }
-
-    /**
-     * Generates a 403 FORBIDDEN chunked result.
-     */
-    public static Status forbidden(InputStream content) {
-        return forbidden(content, defaultChunkSize);
-    }
-
-    /**
-     * Generates a 403 FORBIDDEN chunked result.
-     */
-    public static Status forbidden(InputStream content, int chunkSize) {
-        return new Status(play.core.j.JavaResults.Forbidden(), content, chunkSize);
-    }
-
-    /**
-     * Generates a 403 FORBIDDEN file result as an attachment.
-     *
-     * @param content The file to send.
-     */
-    public static Status forbidden(File content) {
-        return new Status(play.core.j.JavaResults.Forbidden(), content);
-    }
-
-    /**
-     * Generates a 403 FORBIDDEN file result.
-     *
-     * @param content The file to send.
-     * @param inline Whether the file should be sent inline, or as an attachment.
-     */
-    public static Status forbidden(File content, boolean inline) {
-        return new Status(JavaResults.Forbidden(), content, inline);
-    }
-
-    /**
-     * Generates a 403 FORBIDDEN file result as an attachment.
-     *
-     * @param content The file to send.
-     * @param filename The name to send the file as.
-     */
-    public static Status forbidden(File content, String filename) {
-        return new Status(JavaResults.Forbidden(), content, true, filename);
-    }
-
-    /**
-     * Generates a 403 FORBIDDEN chunked result.
-     */
-    public static Status forbidden(Chunks<?> chunks) {
-        return new Status(play.core.j.JavaResults.Forbidden(), chunks);
-    }
-
-    // -- UNAUTHORIZED
-
-    /**
-     * Generates a 401 UNAUTHORIZED simple result.
-     */
-    public static Status unauthorized() {
-        return new Status(play.core.j.JavaResults.Unauthorized());
-    }
-
-    /**
-     * Generates a 401 UNAUTHORIZED simple result.
-     */
-    public static Status unauthorized(Content content) {
-        return new Status(play.core.j.JavaResults.Unauthorized(), content, utf8);
-    }
-
-    /**
-     * Generates a 401 UNAUTHORIZED simple result.
-     */
-    public static Status unauthorized(Content content, String charset) {
-        return new Status(play.core.j.JavaResults.Unauthorized(), content, Codec.javaSupported(charset));
-    }
-
-    /**
-     * Generates a 401 UNAUTHORIZED simple result.
-     */
-    public static Status unauthorized(String content) {
-        return new Status(play.core.j.JavaResults.Unauthorized(), content, utf8);
-    }
-
-    /**
-     * Generates a 401 UNAUTHORIZED simple result.
-     */
-    public static Status unauthorized(String content, String charset) {
-        return new Status(play.core.j.JavaResults.Unauthorized(), content, Codec.javaSupported(charset));
-    }
-
-    /**
-     * Generates a 401 UNAUTHORIZED simple result.
-     */
-    public static Status unauthorized(JsonNode content) {
-        return new Status(play.core.j.JavaResults.Unauthorized(), content, utf8);
-    }
-
-    /**
-     * Generates a 401 UNAUTHORIZED simple result.
-     */
-    public static Status unauthorized(JsonNode content, String charset) {
-        return new Status(play.core.j.JavaResults.Unauthorized(), content, Codec.javaSupported(charset));
-    }
-
-    /**
-     * Generates a 401 UNAUTHORIZED simple result.
-     */
-    public static Status unauthorized(byte[] content) {
-        return new Status(play.core.j.JavaResults.Unauthorized(), content);
-    }
-
-    /**
-     * Generates a 401 UNAUTHORIZED chunked result.
-     */
-    public static Status unauthorized(InputStream content) {
-        return unauthorized(content, defaultChunkSize);
-    }
-
-    /**
-     * Generates a 401 UNAUTHORIZED chunked result.
-     */
-    public static Status unauthorized(InputStream content, int chunkSize) {
-        return new Status(play.core.j.JavaResults.Unauthorized(), content, chunkSize);
-    }
-
-    /**
-     * Generates a 401 UNAUTHORIZED file result as an attachment.
-     *
-     * @param content The file to send.
-     */
-    public static Status unauthorized(File content) {
-        return new Status(play.core.j.JavaResults.Unauthorized(), content);
-    }
-
-    /**
-     * Generates a 401 UNAUTHORIZED file result.
-     *
-     * @param content The file to send.
-     * @param inline Whether the file should be sent inline, or as an attachment.
-     */
-    public static Status unauthorized(File content, boolean inline) {
-        return new Status(JavaResults.Unauthorized(), content, inline);
-    }
-
-    /**
-     * Generates a 401 UNAUTHORIZED file result as an attachment.
-     *
-     * @param content The file to send.
-     * @param filename The name to send the file as.
-     */
-    public static Status unauthorized(File content, String filename) {
-        return new Status(JavaResults.Unauthorized(), content, true, filename);
-    }
-
-    /**
-     * Generates a 401 UNAUTHORIZED chunked result.
-     */
-    public static Status unauthorized(Chunks<?> chunks) {
-        return new Status(play.core.j.JavaResults.Unauthorized(), chunks);
-    }
-
-    // -- BAD_REQUEST
-
-    /**
-     * Generates a 400 BAD_REQUEST simple result.
-     */
-    public static Status badRequest() {
-        return new Status(play.core.j.JavaResults.BadRequest());
-    }
-
-    /**
-     * Generates a 400 BAD_REQUEST simple result.
-     */
-    public static Status badRequest(Content content) {
-        return new Status(play.core.j.JavaResults.BadRequest(), content, utf8);
-    }
-
-    /**
-     * Generates a 400 BAD_REQUEST simple result.
-     */
-    public static Status badRequest(Content content, String charset) {
-        return new Status(play.core.j.JavaResults.BadRequest(), content, Codec.javaSupported(charset));
-    }
-
-    /**
-     * Generates a 400 BAD_REQUEST simple result.
-     */
-    public static Status badRequest(String content) {
-        return new Status(play.core.j.JavaResults.BadRequest(), content, utf8);
-    }
-
-    /**
-     * Generates a 400 BAD_REQUEST simple result.
-     */
-    public static Status badRequest(String content, String charset) {
-        return new Status(play.core.j.JavaResults.BadRequest(), content, Codec.javaSupported(charset));
-    }
-
-    /**
-     * Generates a 400 BAD_REQUEST simple result.
-     */
-    public static Status badRequest(JsonNode content) {
-        return new Status(play.core.j.JavaResults.BadRequest(), content, utf8);
-    }
-
-    /**
-     * Generates a 400 BAD_REQUEST simple result.
-     */
-    public static Status badRequest(JsonNode content, String charset) {
-        return new Status(play.core.j.JavaResults.BadRequest(), content, Codec.javaSupported(charset));
-    }
-
-    /**
-     * Generates a 400 BAD_REQUEST simple result.
-     */
-    public static Status badRequest(byte[] content) {
-        return new Status(play.core.j.JavaResults.BadRequest(), content);
-    }
-
-    /**
-     * Generates a 400 BAD_REQUEST chunked result.
-     */
-    public static Status badRequest(InputStream content) {
-        return badRequest(content, defaultChunkSize);
-    }
-
-    /**
-     * Generates a 400 BAD_REQUEST chunked result.
-     */
-    public static Status badRequest(InputStream content, int chunkSize) {
-        return new Status(play.core.j.JavaResults.BadRequest(), content, chunkSize);
-    }
-
-    /**
-     * Generates a 400 BAD_REQUEST file result as an attachment.
-     *
-     * @param content The file to send.
-     */
-    public static Status badRequest(File content) {
-        return new Status(play.core.j.JavaResults.BadRequest(), content);
-    }
-
-    /**
-     * Generates a 400 BAD_REQUEST file result.
-     *
-     * @param content The file to send.
-     * @param inline Whether the file should be sent inline, or as an attachment.
-     */
-    public static Status badRequest(File content, boolean inline) {
-        return new Status(JavaResults.BadRequest(), content, inline);
-    }
-
-    /**
-     * Generates a 400 BAD_REQUEST file result as an attachment.
-     *
-     * @param content The file to send.
-     * @param filename The name to send the file as.
-     */
-    public static Status badRequest(File content, String filename) {
-        return new Status(JavaResults.BadRequest(), content, true, filename);
-    }
-
-    /**
-     * Generates a 400 BAD_REQUEST chunked result.
-     */
-    public static Status badRequest(Chunks<?> chunks) {
-        return new Status(play.core.j.JavaResults.BadRequest(), chunks);
-    }
-
-    // -- Redirect
-
-    /**
-     * Generates a 303 SEE_OTHER simple result.
-     *
-     * @param url The url to redirect.
-     */
-    public static Result redirect(String url) {
-        return new Redirect(303, url);
-    }
-
-    /**
-     * Generates a 303 SEE_OTHER simple result.
-     *
-     * @param call Call defining the url to redirect (typically comes from reverse router).
-     */
-    public static Result redirect(Call call) {
-        return new Redirect(303, call.url());
-    }
-
-    // -- Found
-
-    /**
-     * Generates a 302 FOUND simple result.
-     *
-     * @param url The url to redirect.
-     */
-    public static Result found(String url) {
-        return new Redirect(302, url);
-    }
-
-    /**
-     * Generates a 302 FOUND simple result.
-     *
-     * @param call Call defining the url to redirect (typically comes from reverse router).
-     */
-    public static Result found(Call call) {
-        return new Redirect(302, call.url());
+    public static Result status(int status, Chunks<?> chunks) {
+        return status(status).chunked(chunks);
     }
-
-    // -- Moved Permanently
-
-    /**
-     * Generates a 301 MOVED_PERMANENTLY simple result.
-     *
-     * @param url The url to redirect.
-     */
-    public static Result movedPermanently(String url) {
-        return new Redirect(301, url);
-    }
-
-    /**
-     * Generates a 301 MOVED_PERMANENTLY simple result.
-     *
-     * @param call Call defining the url to redirect (typically comes from reverse router).
-     */
-    public static Result movedPermanently(Call call) {
-        return new Redirect(301, call.url());
-    }
-
-    // -- See Other
-
-    /**
-     * Generates a 303 SEE_OTHER simple result.
-     *
-     * @param url The url to redirect.
-     */
-    public static Result seeOther(String url) {
-        return new Redirect(303, url);
-    }
-
-    /**
-     * Generates a 303 SEE_OTHER simple result.
-     *
-     * @param call Call defining the url to redirect (typically comes from reverse router).
-     */
-    public static Result seeOther(Call call) {
-        return new Redirect(303, call.url());
-    }
-
-    // -- Temporary Redirect
-
-    /**
-     * Generates a 307 TEMPORARY_REDIRECT simple result.
-     *
-     * @param url The url to redirect.
-     */
-    public static Result temporaryRedirect(String url) {
-        return new Redirect(307, url);
-    }
-
-    /**
-     * Generates a 307 TEMPORARY_REDIRECT simple result.
-     *
-     * @param call Call defining the url to redirect (typically comes from reverse router).
-     */
-    public static Result temporaryRedirect(Call call) {
-        return new Redirect(307, call.url());
-    }
-
-    // -- Definitions
 
     /**
      * A Chunked result.
+     *
+     * @deprecated use {@link akka.stream.javadsl.Source} instead.
      */
     public abstract static class Chunks<A> {
 
@@ -1006,18 +171,13 @@ public class Results {
             final Chunks<A> self = this;
             this.writable = writable;
             final RedeemablePromise<Object> disconnected = RedeemablePromise.<Object>empty();
-            this.enumerator = play.core.j.JavaResults.chunked(new Callback<Concurrent.Channel<A>>() {
-                @Override
-                public void invoke(Concurrent.Channel<A> channel) {
-                    Chunks.Out<A> chunked = new Chunks.Out<A>(channel, disconnected);
-                    self.onReady(chunked);
-                }
-            }, new Callback0() {
-                @Override
-                public void invoke() throws Throwable {
-                    disconnected.success(null);
-                }
-            });
+            this.enumerator = play.core.j.JavaResults.chunked(
+                    (channel) -> {
+                        Chunks.Out<A> chunked = new Chunks.Out<A>(channel, disconnected);
+                        self.onReady(chunked);
+                    },
+                    () -> disconnected.success(null)
+            );
         }
 
         /**
@@ -1041,10 +201,10 @@ public class Results {
                 this.disconnected = disconnected;
             }
 
-            public Out(play.api.libs.iteratee.Concurrent.Channel<A> channel, List<Callback0> disconnectedCallbacks) {
+            public Out(play.api.libs.iteratee.Concurrent.Channel<A> channel, List<Runnable> disconnectedCallbacks) {
                 this.channel = channel;
                 this.disconnected = RedeemablePromise.<Object>empty();
-                for(Callback0 callback: disconnectedCallbacks) {
+                for(Runnable callback: disconnectedCallbacks) {
                     onDisconnected(callback);
                 }
             }
@@ -1059,12 +219,8 @@ public class Results {
             /**
              * Attach a callback to be called when the socket is disconnected.
              */
-            public void onDisconnected(final Callback0 callback) {
-                disconnected.onRedeem(new Callback<Object>() {
-                    public void invoke(Object ignored) throws Throwable {
-                        callback.invoke();
-                    }
-                });
+            public void onDisconnected(final Runnable callback) {
+                disconnected.onRedeem(ignored -> callback.run());
             }
 
             /**
@@ -1080,13 +236,15 @@ public class Results {
 
     /**
      * Chunked result based on String chunks.
+     *
+     * @deprecated use {@link akka.stream.javadsl.Source} instead.
      */
     public abstract static class StringChunks extends Chunks<String> {
 
         private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(StringChunks.class);
 
         public StringChunks() {
-            this(utf8);
+            this(Codec.utf_8());
         }
 
         public StringChunks(String codec) {
@@ -1107,8 +265,8 @@ public class Results {
          * @return a new StringChunks
          * @throws NullPointerException if the specified callback is null
          */
-        public static StringChunks whenReady(Callback<Chunks.Out<String>> callback) {
-            return whenReady(utf8, callback);
+        public static StringChunks whenReady(Consumer<Chunks.Out<String>> callback) {
+            return whenReady(Codec.utf_8(), callback);
         }
 
         /**
@@ -1120,7 +278,7 @@ public class Results {
          * @return a new StringChunks
          * @throws NullPointerException if the specified callback is null
          */
-        public static StringChunks whenReady(String codec, Callback<Chunks.Out<String>> callback) {
+        public static StringChunks whenReady(String codec, Consumer<Chunks.Out<String>> callback) {
             return whenReady(Codec.javaSupported(codec), callback);
         }
 
@@ -1133,7 +291,7 @@ public class Results {
          * @return a new StringChunks
          * @throws NullPointerException if the specified callback is null
          */
-        public static StringChunks whenReady(Codec codec, Callback<Chunks.Out<String>> callback) {
+        public static StringChunks whenReady(Codec codec, Consumer<Chunks.Out<String>> callback) {
             return new WhenReadyStringChunks(codec, callback);
         }
 
@@ -1143,9 +301,9 @@ public class Results {
          */
         static final class WhenReadyStringChunks extends StringChunks {
 
-            private final Callback<Chunks.Out<String>> callback;
+            private final Consumer<Chunks.Out<String>> callback;
 
-            WhenReadyStringChunks(Codec codec, Callback<Chunks.Out<String>> callback) {
+            WhenReadyStringChunks(Codec codec, Consumer<Chunks.Out<String>> callback) {
                 super(codec);
                 if (callback == null) throw new NullPointerException("StringChunks onReady callback cannot be null");
                 this.callback = callback;
@@ -1154,7 +312,7 @@ public class Results {
             @Override
             public void onReady(Chunks.Out<String> out) {
                 try {
-                    callback.invoke(out);
+                    callback.accept(out);
                 } catch (Throwable e) {
                     logger.error("Exception in StringChunks.onReady", e);
                 }
@@ -1165,7 +323,10 @@ public class Results {
 
     /**
      * Chunked result based on byte[] chunks.
+     *
+     * @deprecated use {@link akka.stream.javadsl.Source} instead.
      */
+    @Deprecated
     public abstract static class ByteChunks extends Chunks<byte[]> {
 
         public ByteChunks() {
@@ -1180,7 +341,7 @@ public class Results {
          * @return a new ByteChunks
          * @throws NullPointerException if the specified callback is null
          */
-        public static ByteChunks whenReady(Callback<Chunks.Out<byte[]>> callback) {
+        public static ByteChunks whenReady(Consumer<Chunks.Out<byte[]>> callback) {
             return new WhenReadyByteChunks(callback);
         }
 
@@ -1192,9 +353,9 @@ public class Results {
 
             private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(WhenReadyByteChunks.class);
 
-            private final Callback<Chunks.Out<byte[]>> callback;
+            private final Consumer<Chunks.Out<byte[]>> callback;
 
-            WhenReadyByteChunks(Callback<Chunks.Out<byte[]>> callback) {
+            WhenReadyByteChunks(Consumer<Chunks.Out<byte[]>> callback) {
                 super();
                 if (callback == null) throw new NullPointerException("ByteChunks onReady callback cannot be null");
                 this.callback = callback;
@@ -1203,7 +364,7 @@ public class Results {
             @Override
             public void onReady(Chunks.Out<byte[]> out) {
                 try {
-                    callback.invoke(out);
+                    callback.accept(out);
                 } catch (Throwable e) {
                     logger.error("Exception in ByteChunks.onReady", e);
                 }
@@ -1212,153 +373,980 @@ public class Results {
 
     }
 
+    //////////////////////////////////////////////////////
+    // EVERYTHING BELOW HERE IS GENERATED
+    //
+    // See https://github.com/jroper/play-source-generator
+    //////////////////////////////////////////////////////
+
     /**
-     * A 501 NOT_IMPLEMENTED simple result.
+     * Generates a 200 OK result.
      */
-    public static class Todo implements Result {
-
-        final private play.api.mvc.Result wrappedResult;
-
-        public Todo() {
-            wrappedResult = play.core.j.JavaResults.NotImplemented().apply(
-                    views.html.defaultpages.todo.render(),
-                    play.core.j.JavaResults.writeContent("text/html", utf8)
-                    );
-        }
-
-        public play.api.mvc.Result toScala() {
-            return this.wrappedResult;
-        }
+    public static StatusHeader ok() {
+        return new StatusHeader(OK);
     }
 
     /**
-     * A simple result.
+     * Generates a 200 OK result.
      */
-    public static class Status implements Result {
-
-        private play.api.mvc.Result wrappedResult;
-
-        public Status(play.api.mvc.Results.Status status) {
-            wrappedResult = status.apply(
-                    play.core.j.JavaResults.empty(),
-                    play.core.j.JavaResults.writeEmptyContent()
-                    );
-        }
-
-        public Status(play.api.mvc.Results.Status status, String content, Codec codec) {
-            if(content == null) {
-                throw new NullPointerException("null content");
-            }
-            wrappedResult = status.apply(
-                    content,
-                    play.core.j.JavaResults.writeString(codec)
-                    );
-        }
-
-        public Status(play.api.mvc.Results.Status status, JsonNode content, Codec codec) {
-            if(content == null) {
-                throw new NullPointerException("null content");
-            }
-            wrappedResult = status.apply(
-                    content,
-                    play.core.j.JavaResults.writeJson(codec)
-                    );
-        }
-
-        public Status(play.api.mvc.Results.Status status, Content content, Codec codec) {
-            if(content == null) {
-                throw new NullPointerException("null content");
-            }
-            wrappedResult = status.apply(
-                    content,
-                    play.core.j.JavaResults.writeContent(content.contentType(), codec)
-                    );
-        }
-
-        public <A> Status(play.api.mvc.Results.Status status, Chunks<A> chunks) {
-            if(chunks == null) {
-                throw new NullPointerException("null content");
-            }
-            wrappedResult = status.chunked(chunks.enumerator, chunks.writable);
-        }
-
-        public Status(play.api.mvc.Results.Status status, byte[] content) {
-            if(content == null) {
-                throw new NullPointerException("null content");
-            }
-            wrappedResult = status.apply(
-                    content,
-                    play.core.j.JavaResults.writeBytes()
-                    );
-        }
-
-        public Status(play.api.mvc.Results.Status status, File content) {
-            this(status, content, false);
-        }
-
-        public Status(play.api.mvc.Results.Status status, File content, boolean inline) {
-            this(status, content, inline, content.getName());
-        }
-
-        public Status(play.api.mvc.Results.Status status, File content, boolean inline, String filename) {
-            if(content == null) {
-                throw new NullPointerException("null content");
-            }
-            wrappedResult = play.core.j.JavaResults.sendFile(status, content, inline, filename);
-        }
-
-        public Status(play.api.mvc.Results.Status status, File content, int chunkSize) {
-            if(content == null) {
-                throw new NullPointerException("null content");
-            }
-            wrappedResult = status.chunked(
-                    play.core.j.JavaResults.chunked(content, chunkSize),
-                    play.core.j.JavaResults.writeBytes(Scala.orNull(play.api.libs.MimeTypes.forFileName(content.getName())))
-                    );
-        }
-
-        public Status(play.api.mvc.Results.Status status, InputStream content, int chunkSize) {
-            if(content == null) {
-                throw new NullPointerException("null content");
-            }
-            wrappedResult = status.stream(
-                    play.core.j.JavaResults.chunked(content, chunkSize),
-                    play.core.j.JavaResults.writeBytes()
-                    );
-        }
-
-        public play.api.mvc.Result toScala() {
-            return wrappedResult;
-        }
-
-        /**
-         * Change the Content-Type header for this result.
-         */
-        public Status as(String contentType) {
-            wrappedResult = wrappedResult.as(contentType);
-            return this;
-        }
-
-        public String toString() {
-            return wrappedResult.toString();
-        }
-
+    public static Result ok(Content content) {
+        return status(OK, content);
     }
 
     /**
-     * A redirect result.
+     * Generates a 200 OK result.
      */
-    public static class Redirect implements Result {
-
-        final private play.api.mvc.Result wrappedResult;
-
-        public Redirect(int status, String url) {
-            wrappedResult = play.core.j.JavaResults.Redirect(url, status);
-        }
-
-        public play.api.mvc.Result toScala() {
-            return this.wrappedResult;
-        }
-
+    public static Result ok(Content content, String charset) {
+        return status(OK, content, charset);
     }
+
+    /**
+     * Generates a 200 OK result.
+     */
+    public static Result ok(String content) {
+        return status(OK, content);
+    }
+
+    /**
+     * Generates a 200 OK result.
+     */
+    public static Result ok(String content, String charset) {
+        return status(OK, content, charset);
+    }
+
+    /**
+     * Generates a $status.code OK result.
+     */
+    public static Result ok(JsonNode content) {
+        return status(OK, content);
+    }
+
+    /**
+     * Generates a 200 OK result.
+     */
+    public static Result ok(JsonNode content, String charset) {
+        return status(OK, content, charset);
+    }
+
+    /**
+     * Generates a 200 OK result.
+     */
+    public static Result ok(byte[] content) {
+        return status(OK, content);
+    }
+
+    /**
+     * Generates a 200 OK result.
+     */
+    public static Result ok(InputStream content) {
+        return status(OK, content);
+    }
+
+    /**
+     * Generates a 200 OK result.
+     */
+    public static Result ok(InputStream content, long contentLength) {
+        return status(OK, content, contentLength);
+    }
+
+    /**
+     * Generates a 200 OK result.
+     *
+     * @param content The file to send.
+     */
+    public static Result ok(File content) {
+        return status(OK, content);
+    }
+
+    /**
+     * Generates a 200 OK result.
+     *
+     * @param content The file to send.
+     * @param inline Whether the file should be sent inline, or as an attachment.
+     */
+    public static Result ok(File content, boolean inline) {
+        return status(OK, content, inline);
+    }
+
+    /**
+     * Generates a 200 OK result.
+     *
+     * @param content The file to send.
+     * @param filename The name to send the file as.
+     */
+    public static Result ok(File content, String filename) {
+        return status(OK, content, filename);
+    }
+
+    /**
+     * Generates a 200 OK result.
+     *
+     * @deprecated Use {@link #ok } with {@link StatusHeader#chunked(akka.stream.javadsl.Source) }
+     * instead.
+     */
+    @Deprecated
+    public static Result ok(Chunks<?> chunks) {
+        return status(OK, chunks);
+    }
+
+    /**
+     * Generates a 201 Created result.
+     */
+    public static StatusHeader created() {
+        return new StatusHeader(CREATED);
+    }
+
+    /**
+     * Generates a 201 Created result.
+     */
+    public static Result created(Content content) {
+        return status(CREATED, content);
+    }
+
+    /**
+     * Generates a 201 Created result.
+     */
+    public static Result created(Content content, String charset) {
+        return status(CREATED, content, charset);
+    }
+
+    /**
+     * Generates a 201 Created result.
+     */
+    public static Result created(String content) {
+        return status(CREATED, content);
+    }
+
+    /**
+     * Generates a 201 Created result.
+     */
+    public static Result created(String content, String charset) {
+        return status(CREATED, content, charset);
+    }
+
+    /**
+     * Generates a $status.code Created result.
+     */
+    public static Result created(JsonNode content) {
+        return status(CREATED, content);
+    }
+
+    /**
+     * Generates a 201 Created result.
+     */
+    public static Result created(JsonNode content, String charset) {
+        return status(CREATED, content, charset);
+    }
+
+    /**
+     * Generates a 201 Created result.
+     */
+    public static Result created(byte[] content) {
+        return status(CREATED, content);
+    }
+
+    /**
+     * Generates a 201 Created result.
+     */
+    public static Result created(InputStream content) {
+        return status(CREATED, content);
+    }
+
+    /**
+     * Generates a 201 Created result.
+     */
+    public static Result created(InputStream content, long contentLength) {
+        return status(CREATED, content, contentLength);
+    }
+
+    /**
+     * Generates a 201 Created result.
+     *
+     * @param content The file to send.
+     */
+    public static Result created(File content) {
+        return status(CREATED, content);
+    }
+
+    /**
+     * Generates a 201 Created result.
+     *
+     * @param content The file to send.
+     * @param inline Whether the file should be sent inline, or as an attachment.
+     */
+    public static Result created(File content, boolean inline) {
+        return status(CREATED, content, inline);
+    }
+
+    /**
+     * Generates a 201 Created result.
+     *
+     * @param content The file to send.
+     * @param filename The name to send the file as.
+     */
+    public static Result created(File content, String filename) {
+        return status(CREATED, content, filename);
+    }
+
+    /**
+     * Generates a 201 Created result.
+     *
+     * @deprecated Use {@link #created } with {@link StatusHeader#chunked(akka.stream.javadsl.Source) }
+     * instead.
+     */
+    @Deprecated
+    public static Result created(Chunks<?> chunks) {
+        return status(CREATED, chunks);
+    }
+
+    /**
+     * Generates a 400 Bad Request result.
+     */
+    public static StatusHeader badRequest() {
+        return new StatusHeader(BAD_REQUEST);
+    }
+
+    /**
+     * Generates a 400 Bad Request result.
+     */
+    public static Result badRequest(Content content) {
+        return status(BAD_REQUEST, content);
+    }
+
+    /**
+     * Generates a 400 Bad Request result.
+     */
+    public static Result badRequest(Content content, String charset) {
+        return status(BAD_REQUEST, content, charset);
+    }
+
+    /**
+     * Generates a 400 Bad Request result.
+     */
+    public static Result badRequest(String content) {
+        return status(BAD_REQUEST, content);
+    }
+
+    /**
+     * Generates a 400 Bad Request result.
+     */
+    public static Result badRequest(String content, String charset) {
+        return status(BAD_REQUEST, content, charset);
+    }
+
+    /**
+     * Generates a $status.code Bad Request result.
+     */
+    public static Result badRequest(JsonNode content) {
+        return status(BAD_REQUEST, content);
+    }
+
+    /**
+     * Generates a 400 Bad Request result.
+     */
+    public static Result badRequest(JsonNode content, String charset) {
+        return status(BAD_REQUEST, content, charset);
+    }
+
+    /**
+     * Generates a 400 Bad Request result.
+     */
+    public static Result badRequest(byte[] content) {
+        return status(BAD_REQUEST, content);
+    }
+
+    /**
+     * Generates a 400 Bad Request result.
+     */
+    public static Result badRequest(InputStream content) {
+        return status(BAD_REQUEST, content);
+    }
+
+    /**
+     * Generates a 400 Bad Request result.
+     */
+    public static Result badRequest(InputStream content, long contentLength) {
+        return status(BAD_REQUEST, content, contentLength);
+    }
+
+    /**
+     * Generates a 400 Bad Request result.
+     *
+     * @param content The file to send.
+     */
+    public static Result badRequest(File content) {
+        return status(BAD_REQUEST, content);
+    }
+
+    /**
+     * Generates a 400 Bad Request result.
+     *
+     * @param content The file to send.
+     * @param inline Whether the file should be sent inline, or as an attachment.
+     */
+    public static Result badRequest(File content, boolean inline) {
+        return status(BAD_REQUEST, content, inline);
+    }
+
+    /**
+     * Generates a 400 Bad Request result.
+     *
+     * @param content The file to send.
+     * @param filename The name to send the file as.
+     */
+    public static Result badRequest(File content, String filename) {
+        return status(BAD_REQUEST, content, filename);
+    }
+
+    /**
+     * Generates a 400 Bad Request result.
+     *
+     * @deprecated Use {@link #badRequest } with {@link StatusHeader#chunked(akka.stream.javadsl.Source) }
+     * instead.
+     */
+    @Deprecated
+    public static Result badRequest(Chunks<?> chunks) {
+        return status(BAD_REQUEST, chunks);
+    }
+
+    /**
+     * Generates a 401 Unauthorized result.
+     */
+    public static StatusHeader unauthorized() {
+        return new StatusHeader(UNAUTHORIZED);
+    }
+
+    /**
+     * Generates a 401 Unauthorized result.
+     */
+    public static Result unauthorized(Content content) {
+        return status(UNAUTHORIZED, content);
+    }
+
+    /**
+     * Generates a 401 Unauthorized result.
+     */
+    public static Result unauthorized(Content content, String charset) {
+        return status(UNAUTHORIZED, content, charset);
+    }
+
+    /**
+     * Generates a 401 Unauthorized result.
+     */
+    public static Result unauthorized(String content) {
+        return status(UNAUTHORIZED, content);
+    }
+
+    /**
+     * Generates a 401 Unauthorized result.
+     */
+    public static Result unauthorized(String content, String charset) {
+        return status(UNAUTHORIZED, content, charset);
+    }
+
+    /**
+     * Generates a $status.code Unauthorized result.
+     */
+    public static Result unauthorized(JsonNode content) {
+        return status(UNAUTHORIZED, content);
+    }
+
+    /**
+     * Generates a 401 Unauthorized result.
+     */
+    public static Result unauthorized(JsonNode content, String charset) {
+        return status(UNAUTHORIZED, content, charset);
+    }
+
+    /**
+     * Generates a 401 Unauthorized result.
+     */
+    public static Result unauthorized(byte[] content) {
+        return status(UNAUTHORIZED, content);
+    }
+
+    /**
+     * Generates a 401 Unauthorized result.
+     */
+    public static Result unauthorized(InputStream content) {
+        return status(UNAUTHORIZED, content);
+    }
+
+    /**
+     * Generates a 401 Unauthorized result.
+     */
+    public static Result unauthorized(InputStream content, long contentLength) {
+        return status(UNAUTHORIZED, content, contentLength);
+    }
+
+    /**
+     * Generates a 401 Unauthorized result.
+     *
+     * @param content The file to send.
+     */
+    public static Result unauthorized(File content) {
+        return status(UNAUTHORIZED, content);
+    }
+
+    /**
+     * Generates a 401 Unauthorized result.
+     *
+     * @param content The file to send.
+     * @param inline Whether the file should be sent inline, or as an attachment.
+     */
+    public static Result unauthorized(File content, boolean inline) {
+        return status(UNAUTHORIZED, content, inline);
+    }
+
+    /**
+     * Generates a 401 Unauthorized result.
+     *
+     * @param content The file to send.
+     * @param filename The name to send the file as.
+     */
+    public static Result unauthorized(File content, String filename) {
+        return status(UNAUTHORIZED, content, filename);
+    }
+
+    /**
+     * Generates a 401 Unauthorized result.
+     *
+     * @deprecated Use {@link #unauthorized } with {@link StatusHeader#chunked(akka.stream.javadsl.Source) }
+     * instead.
+     */
+    @Deprecated
+    public static Result unauthorized(Chunks<?> chunks) {
+        return status(UNAUTHORIZED, chunks);
+    }
+
+    /**
+     * Generates a 402 Payment Required result.
+     */
+    public static StatusHeader paymentRequired() {
+        return new StatusHeader(PAYMENT_REQUIRED);
+    }
+
+    /**
+     * Generates a 402 Payment Required result.
+     */
+    public static Result paymentRequired(Content content) {
+        return status(PAYMENT_REQUIRED, content);
+    }
+
+    /**
+     * Generates a 402 Payment Required result.
+     */
+    public static Result paymentRequired(Content content, String charset) {
+        return status(PAYMENT_REQUIRED, content, charset);
+    }
+
+    /**
+     * Generates a 402 Payment Required result.
+     */
+    public static Result paymentRequired(String content) {
+        return status(PAYMENT_REQUIRED, content);
+    }
+
+    /**
+     * Generates a 402 Payment Required result.
+     */
+    public static Result paymentRequired(String content, String charset) {
+        return status(PAYMENT_REQUIRED, content, charset);
+    }
+
+    /**
+     * Generates a $status.code Payment Required result.
+     */
+    public static Result paymentRequired(JsonNode content) {
+        return status(PAYMENT_REQUIRED, content);
+    }
+
+    /**
+     * Generates a 402 Payment Required result.
+     */
+    public static Result paymentRequired(JsonNode content, String charset) {
+        return status(PAYMENT_REQUIRED, content, charset);
+    }
+
+    /**
+     * Generates a 402 Payment Required result.
+     */
+    public static Result paymentRequired(byte[] content) {
+        return status(PAYMENT_REQUIRED, content);
+    }
+
+    /**
+     * Generates a 402 Payment Required result.
+     */
+    public static Result paymentRequired(InputStream content) {
+        return status(PAYMENT_REQUIRED, content);
+    }
+
+    /**
+     * Generates a 402 Payment Required result.
+     */
+    public static Result paymentRequired(InputStream content, long contentLength) {
+        return status(PAYMENT_REQUIRED, content, contentLength);
+    }
+
+    /**
+     * Generates a 402 Payment Required result.
+     *
+     * @param content The file to send.
+     */
+    public static Result paymentRequired(File content) {
+        return status(PAYMENT_REQUIRED, content);
+    }
+
+    /**
+     * Generates a 402 Payment Required result.
+     *
+     * @param content The file to send.
+     * @param inline Whether the file should be sent inline, or as an attachment.
+     */
+    public static Result paymentRequired(File content, boolean inline) {
+        return status(PAYMENT_REQUIRED, content, inline);
+    }
+
+    /**
+     * Generates a 402 Payment Required result.
+     *
+     * @param content The file to send.
+     * @param filename The name to send the file as.
+     */
+    public static Result paymentRequired(File content, String filename) {
+        return status(PAYMENT_REQUIRED, content, filename);
+    }
+
+    /**
+     * Generates a 402 Payment Required result.
+     *
+     * @deprecated Use {@link #paymentRequired } with {@link StatusHeader#chunked(akka.stream.javadsl.Source) }
+     * instead.
+     */
+    @Deprecated
+    public static Result paymentRequired(Chunks<?> chunks) {
+        return status(PAYMENT_REQUIRED, chunks);
+    }
+
+    /**
+     * Generates a 403 Forbidden result.
+     */
+    public static StatusHeader forbidden() {
+        return new StatusHeader(FORBIDDEN);
+    }
+
+    /**
+     * Generates a 403 Forbidden result.
+     */
+    public static Result forbidden(Content content) {
+        return status(FORBIDDEN, content);
+    }
+
+    /**
+     * Generates a 403 Forbidden result.
+     */
+    public static Result forbidden(Content content, String charset) {
+        return status(FORBIDDEN, content, charset);
+    }
+
+    /**
+     * Generates a 403 Forbidden result.
+     */
+    public static Result forbidden(String content) {
+        return status(FORBIDDEN, content);
+    }
+
+    /**
+     * Generates a 403 Forbidden result.
+     */
+    public static Result forbidden(String content, String charset) {
+        return status(FORBIDDEN, content, charset);
+    }
+
+    /**
+     * Generates a $status.code Forbidden result.
+     */
+    public static Result forbidden(JsonNode content) {
+        return status(FORBIDDEN, content);
+    }
+
+    /**
+     * Generates a 403 Forbidden result.
+     */
+    public static Result forbidden(JsonNode content, String charset) {
+        return status(FORBIDDEN, content, charset);
+    }
+
+    /**
+     * Generates a 403 Forbidden result.
+     */
+    public static Result forbidden(byte[] content) {
+        return status(FORBIDDEN, content);
+    }
+
+    /**
+     * Generates a 403 Forbidden result.
+     */
+    public static Result forbidden(InputStream content) {
+        return status(FORBIDDEN, content);
+    }
+
+    /**
+     * Generates a 403 Forbidden result.
+     */
+    public static Result forbidden(InputStream content, long contentLength) {
+        return status(FORBIDDEN, content, contentLength);
+    }
+
+    /**
+     * Generates a 403 Forbidden result.
+     *
+     * @param content The file to send.
+     */
+    public static Result forbidden(File content) {
+        return status(FORBIDDEN, content);
+    }
+
+    /**
+     * Generates a 403 Forbidden result.
+     *
+     * @param content The file to send.
+     * @param inline Whether the file should be sent inline, or as an attachment.
+     */
+    public static Result forbidden(File content, boolean inline) {
+        return status(FORBIDDEN, content, inline);
+    }
+
+    /**
+     * Generates a 403 Forbidden result.
+     *
+     * @param content The file to send.
+     * @param filename The name to send the file as.
+     */
+    public static Result forbidden(File content, String filename) {
+        return status(FORBIDDEN, content, filename);
+    }
+
+    /**
+     * Generates a 403 Forbidden result.
+     *
+     * @deprecated Use {@link #forbidden } with {@link StatusHeader#chunked(akka.stream.javadsl.Source) }
+     * instead.
+     */
+    @Deprecated
+    public static Result forbidden(Chunks<?> chunks) {
+        return status(FORBIDDEN, chunks);
+    }
+
+    /**
+     * Generates a 404 Not Found result.
+     */
+    public static StatusHeader notFound() {
+        return new StatusHeader(NOT_FOUND);
+    }
+
+    /**
+     * Generates a 404 Not Found result.
+     */
+    public static Result notFound(Content content) {
+        return status(NOT_FOUND, content);
+    }
+
+    /**
+     * Generates a 404 Not Found result.
+     */
+    public static Result notFound(Content content, String charset) {
+        return status(NOT_FOUND, content, charset);
+    }
+
+    /**
+     * Generates a 404 Not Found result.
+     */
+    public static Result notFound(String content) {
+        return status(NOT_FOUND, content);
+    }
+
+    /**
+     * Generates a 404 Not Found result.
+     */
+    public static Result notFound(String content, String charset) {
+        return status(NOT_FOUND, content, charset);
+    }
+
+    /**
+     * Generates a $status.code Not Found result.
+     */
+    public static Result notFound(JsonNode content) {
+        return status(NOT_FOUND, content);
+    }
+
+    /**
+     * Generates a 404 Not Found result.
+     */
+    public static Result notFound(JsonNode content, String charset) {
+        return status(NOT_FOUND, content, charset);
+    }
+
+    /**
+     * Generates a 404 Not Found result.
+     */
+    public static Result notFound(byte[] content) {
+        return status(NOT_FOUND, content);
+    }
+
+    /**
+     * Generates a 404 Not Found result.
+     */
+    public static Result notFound(InputStream content) {
+        return status(NOT_FOUND, content);
+    }
+
+    /**
+     * Generates a 404 Not Found result.
+     */
+    public static Result notFound(InputStream content, long contentLength) {
+        return status(NOT_FOUND, content, contentLength);
+    }
+
+    /**
+     * Generates a 404 Not Found result.
+     *
+     * @param content The file to send.
+     */
+    public static Result notFound(File content) {
+        return status(NOT_FOUND, content);
+    }
+
+    /**
+     * Generates a 404 Not Found result.
+     *
+     * @param content The file to send.
+     * @param inline Whether the file should be sent inline, or as an attachment.
+     */
+    public static Result notFound(File content, boolean inline) {
+        return status(NOT_FOUND, content, inline);
+    }
+
+    /**
+     * Generates a 404 Not Found result.
+     *
+     * @param content The file to send.
+     * @param filename The name to send the file as.
+     */
+    public static Result notFound(File content, String filename) {
+        return status(NOT_FOUND, content, filename);
+    }
+
+    /**
+     * Generates a 404 Not Found result.
+     *
+     * @deprecated Use {@link #notFound } with {@link StatusHeader#chunked(akka.stream.javadsl.Source) }
+     * instead.
+     */
+    @Deprecated
+    public static Result notFound(Chunks<?> chunks) {
+        return status(NOT_FOUND, chunks);
+    }
+
+    /**
+     * Generates a 500 Internal Server Error result.
+     */
+    public static StatusHeader internalServerError() {
+        return new StatusHeader(INTERNAL_SERVER_ERROR);
+    }
+
+    /**
+     * Generates a 500 Internal Server Error result.
+     */
+    public static Result internalServerError(Content content) {
+        return status(INTERNAL_SERVER_ERROR, content);
+    }
+
+    /**
+     * Generates a 500 Internal Server Error result.
+     */
+    public static Result internalServerError(Content content, String charset) {
+        return status(INTERNAL_SERVER_ERROR, content, charset);
+    }
+
+    /**
+     * Generates a 500 Internal Server Error result.
+     */
+    public static Result internalServerError(String content) {
+        return status(INTERNAL_SERVER_ERROR, content);
+    }
+
+    /**
+     * Generates a 500 Internal Server Error result.
+     */
+    public static Result internalServerError(String content, String charset) {
+        return status(INTERNAL_SERVER_ERROR, content, charset);
+    }
+
+    /**
+     * Generates a $status.code Internal Server Error result.
+     */
+    public static Result internalServerError(JsonNode content) {
+        return status(INTERNAL_SERVER_ERROR, content);
+    }
+
+    /**
+     * Generates a 500 Internal Server Error result.
+     */
+    public static Result internalServerError(JsonNode content, String charset) {
+        return status(INTERNAL_SERVER_ERROR, content, charset);
+    }
+
+    /**
+     * Generates a 500 Internal Server Error result.
+     */
+    public static Result internalServerError(byte[] content) {
+        return status(INTERNAL_SERVER_ERROR, content);
+    }
+
+    /**
+     * Generates a 500 Internal Server Error result.
+     */
+    public static Result internalServerError(InputStream content) {
+        return status(INTERNAL_SERVER_ERROR, content);
+    }
+
+    /**
+     * Generates a 500 Internal Server Error result.
+     */
+    public static Result internalServerError(InputStream content, long contentLength) {
+        return status(INTERNAL_SERVER_ERROR, content, contentLength);
+    }
+
+    /**
+     * Generates a 500 Internal Server Error result.
+     *
+     * @param content The file to send.
+     */
+    public static Result internalServerError(File content) {
+        return status(INTERNAL_SERVER_ERROR, content);
+    }
+
+    /**
+     * Generates a 500 Internal Server Error result.
+     *
+     * @param content The file to send.
+     * @param inline Whether the file should be sent inline, or as an attachment.
+     */
+    public static Result internalServerError(File content, boolean inline) {
+        return status(INTERNAL_SERVER_ERROR, content, inline);
+    }
+
+    /**
+     * Generates a 500 Internal Server Error result.
+     *
+     * @param content The file to send.
+     * @param filename The name to send the file as.
+     */
+    public static Result internalServerError(File content, String filename) {
+        return status(INTERNAL_SERVER_ERROR, content, filename);
+    }
+
+    /**
+     * Generates a 500 Internal Server Error result.
+     *
+     * @deprecated Use {@link #internalServerError } with {@link StatusHeader#chunked(akka.stream.javadsl.Source) }
+     * instead.
+     */
+    @Deprecated
+    public static Result internalServerError(Chunks<?> chunks) {
+        return status(INTERNAL_SERVER_ERROR, chunks);
+    }
+
+    /**
+     * Generates a 301 Moved Permanently result.
+     *
+     * @param url The url to redirect.
+     */
+    public static Result movedPermanently(String url) {
+        return new Result(MOVED_PERMANENTLY, Collections.singletonMap(LOCATION, url));
+    }
+
+    /**
+     * Generates a 301 Moved Permanently result.
+     *
+     * @param call Call defining the url to redirect (typically comes from reverse router).
+     */
+    public static Result movedPermanently(Call call) {
+        return new Result(MOVED_PERMANENTLY, Collections.singletonMap(LOCATION, call.url()));
+    }
+
+    /**
+     * Generates a 302 Found result.
+     *
+     * @param url The url to redirect.
+     */
+    public static Result found(String url) {
+        return new Result(FOUND, Collections.singletonMap(LOCATION, url));
+    }
+
+    /**
+     * Generates a 302 Found result.
+     *
+     * @param call Call defining the url to redirect (typically comes from reverse router).
+     */
+    public static Result found(Call call) {
+        return new Result(FOUND, Collections.singletonMap(LOCATION, call.url()));
+    }
+
+    /**
+     * Generates a 303 See Other result.
+     *
+     * @param url The url to redirect.
+     */
+    public static Result seeOther(String url) {
+        return new Result(SEE_OTHER, Collections.singletonMap(LOCATION, url));
+    }
+
+    /**
+     * Generates a 303 See Other result.
+     *
+     * @param call Call defining the url to redirect (typically comes from reverse router).
+     */
+    public static Result seeOther(Call call) {
+        return new Result(SEE_OTHER, Collections.singletonMap(LOCATION, call.url()));
+    }
+
+    /**
+     * Generates a 303 See Other result.
+     *
+     * @param url The url to redirect.
+     */
+    public static Result redirect(String url) {
+        return new Result(SEE_OTHER, Collections.singletonMap(LOCATION, url));
+    }
+
+    /**
+     * Generates a 303 See Other result.
+     *
+     * @param call Call defining the url to redirect (typically comes from reverse router).
+     */
+    public static Result redirect(Call call) {
+        return new Result(SEE_OTHER, Collections.singletonMap(LOCATION, call.url()));
+    }
+
+    /**
+     * Generates a 307 Temporary Redirect result.
+     *
+     * @param url The url to redirect.
+     */
+    public static Result temporaryRedirect(String url) {
+        return new Result(TEMPORARY_REDIRECT, Collections.singletonMap(LOCATION, url));
+    }
+
+    /**
+     * Generates a 307 Temporary Redirect result.
+     *
+     * @param call Call defining the url to redirect (typically comes from reverse router).
+     */
+    public static Result temporaryRedirect(Call call) {
+        return new Result(TEMPORARY_REDIRECT, Collections.singletonMap(LOCATION, call.url()));
+    }
+
 }

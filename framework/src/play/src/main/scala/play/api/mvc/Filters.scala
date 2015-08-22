@@ -1,11 +1,18 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api.mvc
 
+import akka.stream.Materializer
+import akka.util.ByteString
 import play.api._
 import play.api.libs.iteratee._
+import play.api.libs.streams.Accumulator
 import scala.concurrent.{ Promise, Future }
+
+trait EssentialFilter {
+  def apply(next: EssentialAction): EssentialAction
+}
 
 /**
  * Implement this interface if you want to add a Filter to your application
@@ -18,31 +25,37 @@ import scala.concurrent.{ Promise, Future }
  * }
  * }}}
  */
-trait EssentialFilter {
-  def apply(next: EssentialAction): EssentialAction
-}
-
 trait Filter extends EssentialFilter {
-
   self =>
 
+  implicit def mat: Materializer
+
+  /**
+   * Apply the filter, given the request header and a function to call the next
+   * operation.
+   *
+   * @param f A function to call the next opertion. Call this to continue
+   * normally with the current request. You do not need to call this function
+   * if you want to generate a result in a different way.
+   * @param rh The RequestHeader.
+   */
   def apply(f: RequestHeader => Future[Result])(rh: RequestHeader): Future[Result]
 
   def apply(next: EssentialAction): EssentialAction = {
     new EssentialAction {
       import play.api.libs.concurrent.Execution.Implicits.defaultContext
 
-      def apply(rh: RequestHeader): Iteratee[Array[Byte], Result] = {
+      def apply(rh: RequestHeader): Accumulator[ByteString, Result] = {
 
         // Promised result returned to this filter when it invokes the delegate function (the next filter in the chain)
         val promisedResult = Promise[Result]()
-        // Promised iteratee returned to the framework
-        val bodyIteratee = Promise[Iteratee[Array[Byte], Result]]()
+        // Promised accumulator returned to the framework
+        val bodyAccumulator = Promise[Accumulator[ByteString, Result]]()
 
         // Invoke the filter
         val result = self.apply({ (rh: RequestHeader) =>
           // Invoke the delegate
-          bodyIteratee.success(next(rh))
+          bodyAccumulator.success(next(rh))
           promisedResult.future
         })(rh)
 
@@ -50,15 +63,15 @@ trait Filter extends EssentialFilter {
           // It is possible that the delegate function (the next filter in the chain) was never invoked by this Filter. 
           // Therefore, as a fallback, we try to redeem the bodyIteratee Promise here with an iteratee that consumes 
           // the request body.
-          bodyIteratee.tryComplete(resultTry.map(simpleResult => Done(simpleResult)))
+          bodyAccumulator.tryComplete(resultTry.map(simpleResult => Accumulator.done(simpleResult)))
         })
 
-        Iteratee.flatten(bodyIteratee.future.map { it =>
-          it.mapM { simpleResult =>
+        Accumulator.flatten(bodyAccumulator.future.map { it =>
+          it.mapFuture { simpleResult =>
             // When the iteratee is done, we can redeem the promised result that was returned to the filter
             promisedResult.success(simpleResult)
             result
-          }.recoverM {
+          }.recoverWith {
             case t: Throwable =>
               // If the iteratee finishes with an error, fail the promised result that was returned to the 
               // filter with the same error. Note, we MUST use tryFailure here as it's possible that a) 
@@ -75,7 +88,8 @@ trait Filter extends EssentialFilter {
 }
 
 object Filter {
-  def apply(filter: (RequestHeader => Future[Result], RequestHeader) => Future[Result]): Filter = new Filter {
+  def apply(filter: (RequestHeader => Future[Result], RequestHeader) => Future[Result])(implicit m: Materializer): Filter = new Filter {
+    implicit def mat = m
     def apply(f: RequestHeader => Future[Result])(rh: RequestHeader): Future[Result] = filter(f, rh)
   }
 }
@@ -102,7 +116,7 @@ class WithFilters(filters: EssentialFilter*) extends GlobalSettings {
 
 object FilterChain {
   def apply[A](action: EssentialAction, filters: List[EssentialFilter]): EssentialAction = new EssentialAction {
-    def apply(rh: RequestHeader): Iteratee[Array[Byte], Result] = {
+    def apply(rh: RequestHeader): Accumulator[ByteString, Result] = {
       val chain = filters.reverse.foldLeft(action) { (a, i) => i(a) }
       chain(rh)
     }

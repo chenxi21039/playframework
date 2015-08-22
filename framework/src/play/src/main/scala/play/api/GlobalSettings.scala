@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api
 
@@ -11,7 +11,6 @@ import play.core.j
 
 import scala.concurrent.Future
 import play.api.http._
-import play.core.actions.HeadAction
 import play.api.http.Status._
 
 /**
@@ -82,21 +81,20 @@ trait GlobalSettings {
   }
 
   /**
-   * Additional configuration provided by the application.  This is invoked by the default implementation of
-   * onLoadConfig, so if you override that, this won't be invoked.
+   * @deprecated This method does not do anything.
+   * Instead, specify configuration in your config file
+   * or make your own ApplicationLoader (see GuiceApplicationBuilder.loadConfig).
    */
-  def configuration: Configuration = Configuration.empty
+  @Deprecated
+  final def configuration: Configuration = Configuration.empty
 
   /**
-   * Called just after configuration has been loaded, to give the application an opportunity to modify it.
-   *
-   * @param config the loaded configuration
-   * @param path the application path
-   * @param classloader The applications classloader
-   * @param mode The mode the application is running in
-   * @return The configuration that the application should use
+   * @deprecated This method does not do anything.
+   * Instead, specify configuration in your config file
+   * or make your own ApplicationLoader (see GuiceApplicationBuilder.loadConfig).
    */
-  def onLoadConfig(config: Configuration, path: File, classloader: ClassLoader, mode: Mode.Mode): Configuration =
+  @Deprecated
+  final def onLoadConfig(config: Configuration, path: File, classloader: ClassLoader, mode: Mode.Mode): Configuration =
     config ++ configuration
 
   /**
@@ -105,7 +103,7 @@ trait GlobalSettings {
    */
   def onRequestReceived(request: RequestHeader): (RequestHeader, Handler) = {
     def notFoundHandler = Action.async(BodyParsers.parse.empty)(req =>
-      configuredErrorHandler.onClientError(request, NOT_FOUND)
+      configuredErrorHandler.onClientError(req, NOT_FOUND)
     )
 
     val (routedRequest, handler) = onRouteRequest(request) map {
@@ -115,17 +113,18 @@ trait GlobalSettings {
 
       // We automatically permit HEAD requests against any GETs without the need to
       // add an explicit mapping in Routes
-      val missingHandler: Handler = request.method match {
+      request.method match {
         case HttpVerbs.HEAD =>
-          val headAction = onRouteRequest(request.copy(method = HttpVerbs.GET)) match {
-            case Some(action: EssentialAction) => action
-            case None => notFoundHandler
+          onRouteRequest(request.copy(method = HttpVerbs.GET)) match {
+            case Some(action: EssentialAction) => action match {
+              case handler: RequestTaggingHandler => (handler.tagRequest(request), action)
+              case _ => (request, action)
+            }
+            case None => (request, notFoundHandler)
           }
-          new HeadAction(headAction)
         case _ =>
-          notFoundHandler
+          (request, notFoundHandler)
       }
-      (request, missingHandler)
     }
 
     (routedRequest, doFilter(rh => handler)(routedRequest))
@@ -137,11 +136,12 @@ trait GlobalSettings {
    */
   def doFilter(next: RequestHeader => Handler): (RequestHeader => Handler) = {
     (request: RequestHeader) =>
-      val context = Play.maybeApplication.fold("/") { app =>
-        httpConfigurationCache(app).context.replaceAll("/$", "") + "/"
+      val context = Play.maybeApplication.fold("") { app =>
+        httpConfigurationCache(app).context.stripSuffix("/")
       }
+      val inContext = context.isEmpty || request.path == context || request.path.startsWith(context + "/")
       next(request) match {
-        case action: EssentialAction if request.path startsWith context => doFilter(action)
+        case action: EssentialAction if inContext => doFilter(action)
         case handler => handler
       }
   }

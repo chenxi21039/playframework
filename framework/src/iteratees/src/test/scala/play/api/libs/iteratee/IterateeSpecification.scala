@@ -1,18 +1,17 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api.libs.iteratee
 
 import play.api.libs.iteratee.internal.executeFuture
 import scala.concurrent.{ Await, ExecutionContext, Future, Promise }
 import scala.concurrent.duration.{ Duration, SECONDS, MILLISECONDS }
-import org.specs2.mutable.SpecificationLike
 import scala.util.Try
 
 /**
  * Common functionality for iteratee tests.
  */
-trait IterateeSpecification extends NoConcurrentExecutionContext {
+trait IterateeSpecification {
   self: org.specs2.mutable.SpecificationLike =>
 
   val waitTime = Duration(5, SECONDS)

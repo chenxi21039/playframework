@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api.data.format
 
@@ -60,6 +60,17 @@ object Formats {
   implicit def stringFormat: Formatter[String] = new Formatter[String] {
     def bind(key: String, data: Map[String, String]) = data.get(key).toRight(Seq(FormError(key, "error.required", Nil)))
     def unbind(key: String, value: String) = Map(key -> value)
+  }
+
+  /**
+   * Default formatter for the `Char` type.
+   */
+  implicit def charFormat: Formatter[Char] = new Formatter[Char] {
+    def bind(key: String, data: Map[String, String]) =
+      data.get(key).filter(s => s.length == 1 && s != " ").map(s => Right(s.charAt(0))).getOrElse(
+        Left(Seq(FormError(key, "error.required", Nil)))
+      )
+    def unbind(key: String, value: Char) = Map(key -> value.toString)
   }
 
   /**

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2014 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.http;
 
@@ -16,7 +16,7 @@ public class DefaultHttpRequestHandler implements HttpRequestHandler {
     public Action createAction(Http.Request request, Method actionMethod) {
         return new Action.Simple() {
             @Override
-            public F.Promise<Result> call(Http.Context ctx) throws Throwable {
+            public F.Promise<Result> call(Http.Context ctx) {
                 return delegate.call(ctx);
             }
         };

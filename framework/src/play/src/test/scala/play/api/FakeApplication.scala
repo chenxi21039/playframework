@@ -1,13 +1,12 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api
 
+import akka.stream.ActorMaterializer
 import play.api.http.{ NotImplementedHttpRequestHandler, DefaultHttpErrorHandler }
-import play.core.Router
+import play.api.libs.concurrent.ActorSystemProvider
 import java.io.File
-
-import scala.concurrent.Future
 
 /**
  * Fake application as used by Play core tests.  This is needed since Play core can't depend on the Play test API.
@@ -20,7 +19,10 @@ case class FakeApplication(config: Map[String, Any] = Map(),
     plugins: Seq[Plugin.Deprecated] = Nil) extends Application {
   val classloader = Thread.currentThread.getContextClassLoader
   lazy val configuration = Configuration.from(config)
-  def stop() = Future.successful(())
+  private val lazyActorSystem = ActorSystemProvider.lazyStart(classloader, configuration)
+  def actorSystem = lazyActorSystem.get()
+  lazy val materializer = ActorMaterializer()(actorSystem)
+  def stop() = lazyActorSystem.close()
   val errorHandler = DefaultHttpErrorHandler
   val requestHandler = NotImplementedHttpRequestHandler
 }

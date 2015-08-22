@@ -1,7 +1,10 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api.test
+
+import akka.stream.{ ClosedShape, Graph, Materializer }
+import akka.stream.scaladsl.Source
 
 import scala.language.reflectiveCalls
 
@@ -9,7 +12,6 @@ import play.api._
 import play.api.mvc._
 import play.api.http._
 
-import play.api.libs.iteratee._
 import play.api.libs.json.{ Json, JsValue }
 
 import play.twirl.api.Content
@@ -22,7 +24,7 @@ import scala.concurrent.Await
 import scala.concurrent.duration._
 
 import scala.concurrent.Future
-import akka.util.Timeout
+import akka.util.{ ByteString, Timeout }
 
 /**
  * Helper functions to run tests.
@@ -130,7 +132,7 @@ trait Writeables {
     Writeable.wString.map(c => c.txt)
 
   implicit def writeableOf_AnyContentAsEmpty(implicit code: Codec): Writeable[AnyContentAsEmpty.type] =
-    Writeable(_ => Array.empty[Byte], None)
+    Writeable(_ => ByteString.empty, None)
 }
 
 trait DefaultAwaitTimeout {
@@ -186,7 +188,7 @@ trait EssentialActionCaller {
    *
    * The body is serialised using the implicit writable, so that the action body parser can deserialise it.
    */
-  def call[T](action: EssentialAction, req: FakeRequest[T])(implicit w: Writeable[T]): Future[Result] =
+  def call[T](action: EssentialAction, req: Request[T])(implicit w: Writeable[T], mat: Materializer): Future[Result] =
     call(action, req, req.body)
 
   /**
@@ -194,15 +196,15 @@ trait EssentialActionCaller {
    *
    * The body is serialised using the implicit writable, so that the action body parser can deserialise it.
    */
-  def call[T](action: EssentialAction, rh: RequestHeader, body: T)(implicit w: Writeable[T]): Future[Result] = {
+  def call[T](action: EssentialAction, rh: RequestHeader, body: T)(implicit w: Writeable[T], mat: Materializer): Future[Result] = {
     import play.api.http.HeaderNames._
     val newContentType = rh.headers.get(CONTENT_TYPE).fold(w.contentType)(_ => None)
     val rhWithCt = newContentType.map { ct =>
-      rh.copy(headers = FakeHeaders((rh.headers.toMap + (CONTENT_TYPE -> Seq(ct))).toSeq))
+      rh.copy(headers = rh.headers.replace(CONTENT_TYPE -> ct))
     }.getOrElse(rh)
 
-    val requestBody = Enumerator(body) &> w.toEnumeratee
-    requestBody |>>> action(rhWithCt)
+    val requestBody = Source.single(w.transform(body))
+    action(rhWithCt).run(requestBody)
   }
 }
 
@@ -210,11 +212,8 @@ trait RouteInvokers extends EssentialActionCaller {
   self: Writeables =>
 
   // Java compatibility
-  def jRoute(app: Application, rh: RequestHeader): Option[Future[Result]] = route(app, rh, AnyContentAsEmpty)
-  def jRoute(app: Application, rh: RequestHeader, body: Array[Byte]): Option[Future[Result]] = route(app, rh, body)(Writeable.wBytes)
-  def jRoute(rh: RequestHeader, body: Array[Byte]): Option[Future[Result]] = jRoute(Play.current, rh, body)
-  def jRoute[T](app: Application, r: FakeRequest[T]): Option[Future[Result]] = {
-    (r.body: @unchecked) match {
+  def jRoute[T](app: Application, r: RequestHeader, body: T): Option[Future[Result]] = {
+    (body: @unchecked) match {
       case body: AnyContentAsFormUrlEncoded => route(app, r, body)
       case body: AnyContentAsJson => route(app, r, body)
       case body: AnyContentAsXml => route(app, r, body)
@@ -232,6 +231,7 @@ trait RouteInvokers extends EssentialActionCaller {
    */
   def route[T](app: Application, rh: RequestHeader, body: T)(implicit w: Writeable[T]): Option[Future[Result]] = {
     val (taggedRh, handler) = app.requestHandler.handlerForRequest(rh)
+    import app.materializer
     handler match {
       case a: EssentialAction =>
         Some(call(a, taggedRh, body))
@@ -287,37 +287,38 @@ trait ResultExtractors {
   /**
    * Extracts the Content-Type of this Result value.
    */
-  def contentType(of: Future[Result])(implicit timeout: Timeout): Option[String] = header(CONTENT_TYPE, of).map(_.split(";").take(1).mkString.trim)
+  def contentType(of: Future[Result])(implicit timeout: Timeout): Option[String] = {
+    Await.result(of, timeout.duration).body.contentType.map(_.split(";").take(1).mkString.trim)
+  }
 
   /**
    * Extracts the Charset of this Result value.
    */
-  def charset(of: Future[Result])(implicit timeout: Timeout): Option[String] = header(CONTENT_TYPE, of) match {
-    case Some(s) if s.contains("charset=") => Some(s.split("; charset=").drop(1).mkString.trim)
-    case _ => None
+  def charset(of: Future[Result])(implicit timeout: Timeout): Option[String] = {
+    Await.result(of, timeout.duration).body.contentType match {
+      case Some(s) if s.contains("charset=") => Some(s.split("; *charset=").drop(1).mkString.trim)
+      case _ => None
+    }
   }
 
   /**
    * Extracts the content as String.
    */
-  def contentAsString(of: Future[Result])(implicit timeout: Timeout): String = new String(contentAsBytes(of), charset(of).getOrElse("utf-8"))
+  def contentAsString(of: Future[Result])(implicit timeout: Timeout, mat: Materializer = NoMaterializer): String =
+    contentAsBytes(of).decodeString(charset(of).getOrElse("utf-8"))
 
   /**
    * Extracts the content as bytes.
    */
-  def contentAsBytes(of: Future[Result])(implicit timeout: Timeout): Array[Byte] = {
+  def contentAsBytes(of: Future[Result])(implicit timeout: Timeout, mat: Materializer = NoMaterializer): ByteString = {
     val result = Await.result(of, timeout.duration)
-    val eBytes = result.header.headers.get(TRANSFER_ENCODING) match {
-      case Some("chunked") => result.body &> Results.dechunk
-      case _ => result.body
-    }
-    Await.result(eBytes |>>> Iteratee.consume[Array[Byte]](), timeout.duration)
+    Await.result(result.body.consumeData, timeout.duration)
   }
 
   /**
    * Extracts the content as Json.
    */
-  def contentAsJson(of: Future[Result])(implicit timeout: Timeout): JsValue = Json.parse(contentAsString(of))
+  def contentAsJson(of: Future[Result])(implicit timeout: Timeout, mat: Materializer = NoMaterializer): JsValue = Json.parse(contentAsString(of))
 
   /**
    * Extracts the Status code of this Result value.
@@ -327,7 +328,7 @@ trait ResultExtractors {
   /**
    * Extracts the Cookies of this Result value.
    */
-  def cookies(of: Future[Result])(implicit timeout: Timeout): Cookies = Cookies(header(SET_COOKIE, of))
+  def cookies(of: Future[Result])(implicit timeout: Timeout): Cookies = Cookies.fromSetCookieHeader(header(SET_COOKIE, of))
 
   /**
    * Extracts the Flash values of this Result value.
@@ -344,11 +345,11 @@ trait ResultExtractors {
    * Extracts the Location header of this Result value if this Result is a Redirect.
    */
   def redirectLocation(of: Future[Result])(implicit timeout: Timeout): Option[String] = Await.result(of, timeout.duration).header match {
-    case ResponseHeader(FOUND, headers) => headers.get(LOCATION)
-    case ResponseHeader(SEE_OTHER, headers) => headers.get(LOCATION)
-    case ResponseHeader(TEMPORARY_REDIRECT, headers) => headers.get(LOCATION)
-    case ResponseHeader(MOVED_PERMANENTLY, headers) => headers.get(LOCATION)
-    case ResponseHeader(_, _) => None
+    case ResponseHeader(FOUND, headers, _) => headers.get(LOCATION)
+    case ResponseHeader(SEE_OTHER, headers, _) => headers.get(LOCATION)
+    case ResponseHeader(TEMPORARY_REDIRECT, headers, _) => headers.get(LOCATION)
+    case ResponseHeader(MOVED_PERMANENTLY, headers, _) => headers.get(LOCATION)
+    case ResponseHeader(_, _, _) => None
   }
 
   /**
@@ -365,6 +366,7 @@ trait ResultExtractors {
 object Helpers extends PlayRunners
   with HeaderNames
   with Status
+  with MimeTypes
   with HttpProtocol
   with DefaultAwaitTimeout
   with ResultExtractors
@@ -372,3 +374,15 @@ object Helpers extends PlayRunners
   with EssentialActionCaller
   with RouteInvokers
   with FutureAwaits
+
+/**
+ * In 99% of cases, when running tests against the result body, you don't actually need a materializer since it's a
+ * strict body. So, rather than always requiring an implicit materializer, we use one if provided, otherwise we have
+ * a default one that simply throws an exception if used.
+ */
+private[play] object NoMaterializer extends Materializer {
+  def withNamePrefix(name: String) = throw new UnsupportedOperationException("NoMaterializer cannot be named")
+  implicit def executionContext = throw new UnsupportedOperationException("NoMaterializer does not have an execution context")
+  def materialize[Mat](runnable: Graph[ClosedShape, Mat]) =
+    throw new UnsupportedOperationException("No materializer was provided, probably when attempting to extract a response body, but that body is a streamed body and so requires a materializer to extract it.")
+}

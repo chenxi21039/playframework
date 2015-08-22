@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play;
 
@@ -63,7 +63,7 @@ public class GlobalSettings {
     @SuppressWarnings("rawtypes")
     public Action onRequest(Request request, Method actionMethod) {
         return new Action.Simple() {
-            public F.Promise<Result> call(Context ctx) throws Throwable {
+            public F.Promise<Result> call(Context ctx) {
                 return delegate.call(ctx);
             }
         };
@@ -115,27 +115,22 @@ public class GlobalSettings {
     }
 
     /**
-     * Called just after configuration has been loaded, to give the application an opportunity to modify it.
-     *
-     * @param config the loaded configuration
-     * @param path the application path
-     * @param classloader The applications classloader
-     * @return The configuration that the application should use
+     * @deprecated This method does not do anything.
+     * Instead, specify configuration in your config file
+     * or make your own ApplicationLoader (see GuiceApplicationBuilder.loadConfig).
      */
-    public Configuration onLoadConfig(Configuration config, File path, ClassLoader classloader) {
+    @Deprecated
+    public final Configuration onLoadConfig(Configuration config, File path, ClassLoader classloader) {
         return null;
     }
 
     /**
-     * Called just after configuration has been loaded, to give the application an opportunity to modify it.
-     *
-     * @param config the loaded configuration
-     * @param path the application path
-     * @param classloader The applications classloader
-     * @param mode The mode of the application
-     * @return The configuration that the application should use
+     * @deprecated This method does not do anything.
+     * Instead, specify configuration in your config file
+     * or make your own ApplicationLoader (see GuiceApplicationBuilder.loadConfig).
      */
-    public Configuration onLoadConfig(Configuration config, File path, ClassLoader classloader, Mode mode) {
+    @Deprecated
+    public final Configuration onLoadConfig(Configuration config, File path, ClassLoader classloader, Mode mode) {
         return onLoadConfig(config, path, classloader);
     }
 

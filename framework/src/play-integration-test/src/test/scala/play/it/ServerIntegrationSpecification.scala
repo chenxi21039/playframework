@@ -2,11 +2,11 @@ package play.it
 
 import org.specs2.execute._
 import org.specs2.mutable.Specification
-import play.api.{ Application, FakeApplication }
-import play.core.server.NettyServer
-import play.core.server.ServerProvider
+import org.specs2.specification.{ AroundEach, Around }
+import play.api.Application
+import play.core.server.{ NettyServer, ServerProvider }
 import play.core.server.akkahttp.AkkaHttpServer
-import AsResult._
+import scala.concurrent.duration._
 
 /**
  * Helper for creating tests that test integration with different server
@@ -17,9 +17,16 @@ import AsResult._
  * When a test extends this trait it will automatically get overridden versions of
  * TestServer and WithServer that delegate to the correct server backend.
  */
-trait ServerIntegrationSpecification extends PendingUntilFixed {
+trait ServerIntegrationSpecification extends PendingUntilFixed with AroundEach {
   parent =>
-  def integrationServerProvider: ServerProvider
+  implicit def integrationServerProvider: ServerProvider
+
+  /**
+   * Retry up to 3 times.
+   */
+  def around[R: AsResult](r: => R) = {
+    AsResult(EventuallyResults.eventually(3, 20.milliseconds)(r))
+  }
 
   implicit class UntilAkkaHttpFixed[T: AsResult](t: => T) {
     /**
@@ -47,22 +54,25 @@ trait ServerIntegrationSpecification extends PendingUntilFixed {
     port: Int,
     application: Application = play.api.FakeApplication(),
     sslPort: Option[Int] = None): play.api.test.TestServer = {
-    play.api.test.TestServer(port, application, sslPort, integrationServerProvider)
+    play.api.test.TestServer(port, application, sslPort, Some(integrationServerProvider))
   }
 
   /**
    * Override the standard WithServer class.
    */
   abstract class WithServer(
-    app: play.api.test.FakeApplication = play.api.test.FakeApplication(),
-    port: Int = play.api.test.Helpers.testServerPort) extends play.api.test.WithServer(app, port, serverProvider = integrationServerProvider)
+    app: play.api.Application = play.api.test.FakeApplication(),
+    port: Int = play.api.test.Helpers.testServerPort) extends play.api.test.WithServer(
+    app, port, serverProvider = Some(integrationServerProvider))
 
 }
 trait NettyIntegrationSpecification extends ServerIntegrationSpecification {
-  override def integrationServerProvider: ServerProvider = NettyServer.defaultServerProvider
+  override def integrationServerProvider: ServerProvider = NettyServer.provider
 }
 trait AkkaHttpIntegrationSpecification extends ServerIntegrationSpecification {
   self: Specification =>
-  skipAllIf(true) // Disable all tests until issues in Continuous Integration are resolved
-  override def integrationServerProvider: ServerProvider = AkkaHttpServer.defaultServerProvider
+  // Provide a flag to disable Akka HTTP tests
+  private val runTests: Boolean = (System.getProperty("run.akka.http.tests", "true") == "true")
+  skipAllIf(!runTests)
+  override def integrationServerProvider: ServerProvider = AkkaHttpServer.provider
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api.data.format
 
@@ -76,4 +76,26 @@ object FormatSpec extends Specification {
       )
     }
   }
+
+  "A char mapping" should {
+
+    "return a proper Char when given one" in {
+
+      val testChar = 'M'
+
+      Form("value" -> char).bind(Map("value" -> testChar.toString)).fold(
+        formWithErrors => { "The mapping should not fail." must equalTo("Error") },
+        { char => char must equalTo(testChar) }
+      )
+    }
+
+    "give an error when an empty string is passed in" in {
+
+      Form("value" -> char).bind(Map("value" -> " ")).fold(
+        formWithErrors => { formWithErrors.errors.head.message must equalTo("error.required") },
+        { char => char must equalTo('X') }
+      )
+    }
+  }
+
 }

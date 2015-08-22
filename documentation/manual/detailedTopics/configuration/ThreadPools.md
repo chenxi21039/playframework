@@ -1,4 +1,4 @@
-<!--- Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com> -->
+<!--- Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com> -->
 # Understanding Play thread pools
 
 Play framework is, from the bottom up, an asynchronous web framework.  Streams are handled asynchronously using iteratees.  Thread pools in Play are tuned to use fewer threads than in traditional web frameworks, since IO in play-core never blocks.
@@ -30,11 +30,10 @@ In contrast, the following types of IO do not block:
 
 Play uses a number of different thread pools for different purposes:
 
-* **Netty boss/worker thread pools** - These are used internally by Netty for handling Netty IO.  An applications code should never be executed by a thread in these thread pools.
-* **Play Internal Thread Pool** - This is used internally by Play.  No application code should ever be executed by a thread in this thread pool, and no blocking should ever be done in this thread pool.  Its size can be configured by setting `internal-threadpool-size` in `application.conf`, and it defaults to the number of available processors.
-* **Play default thread pool** - This is the default thread pool in which all of your application code in Play Framework is executed.  It is an Akka dispatcher, and can be configured by configuring Akka, described below. By default, it has one thread per processor.
-* **Akka thread pool** - This is used by the Play Akka plugin, and can be configured the same way that you would configure Akka.
+* **Netty boss/worker thread pools** - These are used internally by Netty for handling Netty IO.  An application's code should never be executed by a thread in these thread pools.
+* **Play default thread pool** - This is the thread pool in which all of your application code in Play Framework is executed.  It is an Akka dispatcher, and is used by the application `ActorSystem`. It can be configured by configuring Akka, described below.
 
+> Note that in Play 2.4 several thread pools were combined together into the Play default thread pool.
 
 ## Using the default thread pool
 
@@ -46,13 +45,17 @@ In most situations, the appropriate execution context to use will be the **Play 
 
 ### Configuring the Play default thread pool
 
-The default thread pool can be configured using standard Akka configuration in `application.conf` under the `play` namespace.  Here is the default configuration:
+The default thread pool can be configured using standard Akka configuration in `application.conf` under the `akka` namespace. Here is default configuration for Play's thread pool:
 
 @[default-config](code/ThreadPools.scala)
 
-This configuration instructs Akka to create one thread per available processor, with a maximum of 24 threads in the pool.  The full configuration options available to you can be found [here](http://doc.akka.io/docs/akka/2.2.0/general/configuration.html#Listing_of_the_Reference_Configuration).
+This configuration instructs Akka to create 1 thread per available processor, with a maximum of 24 threads in the pool.
 
-> Note that this configuration is separate from the configuration that the Play Akka plugin uses.  The Play Akka plugin is configured separately, by configuring Akka in the root namespace (without the play { } surrounding it).
+You can also try the default Akka configuration:
+
+@[akka-default-config](code/ThreadPools.scala)
+
+The full configuration options available to you can be found [here](http://doc.akka.io/docs/akka/2.3.11/general/configuration.html#Listing_of_the_Reference_Configuration).
 
 ## Using other thread pools
 
@@ -78,7 +81,7 @@ Class loaders and thread locals need special handling in a multithreaded environ
 
 ### Application class loader
 
-In a Play application the [thread context class loader](http://docs.oracle.com/javase/6/docs/api/java/lang/Thread.html#getContextClassLoader\(\)) may not always be able to load application classes. You should explicitly use the application class loader to load classes.
+In a Play application the [thread context class loader](https://docs.oracle.com/javase/8/docs/api/java/lang/Thread.html#getContextClassLoader--) may not always be able to load application classes. You should explicitly use the application class loader to load classes.
 
 Java
 : @[using-app-classloader](code/ThreadPoolsJava.java)
@@ -88,7 +91,7 @@ Scala
 
 Being explicit about loading classes is most important when running Play in development mode (using `run`) rather than production mode. That's because Play's development mode uses multiple class loaders so that it can support automatic application reloading. Some of Play's threads might be bound to a class loader that only knows about a subset of your application's classes.
 
-In some cases you may not be able to explicitly use the application classloader. This is sometimes the case when using third party libraries. In this case you may need to set the [thread context class loader](http://docs.oracle.com/javase/6/docs/api/java/lang/Thread.html#getContextClassLoader\(\)) explicitly before you call the third party code. If you do, remember to restore the context class loader back to its previous value once you've finished calling the third party code.
+In some cases you may not be able to explicitly use the application classloader. This is sometimes the case when using third party libraries. In this case you may need to set the [thread context class loader](https://docs.oracle.com/javase/8/docs/api/java/lang/Thread.html#getContextClassLoader--) explicitly before you call the third party code. If you do, remember to restore the context class loader back to its previous value once you've finished calling the third party code.
 
 ### Java thread locals
 
@@ -99,12 +102,7 @@ Java `ThreadLocal`s, along with the correct context `ClassLoader`, are propagate
 In the example below, a user thread pool is wrapped to create a new `ExecutionContext` that propagates thread locals correctly.
 
 @[async-explicit-ec-imports](../../working/javaGuide/main/async/code/javaguide/async/controllers/Application.java)
-
-Java 8
-: @[async-explicit-ec](../../working/javaGuide/main/async/java8code/java8guide/async/controllers/Application.java)
-
-Java
-: @[async-explicit-ec](../../working/javaGuide/main/async/code/javaguide/async/controllers/Application.java)
+@[async-explicit-ec](../../working/javaGuide/main/async/code/javaguide/async/controllers/Application.java)
 
 ## Best practices
 
@@ -127,6 +125,13 @@ In this profile, you would simply use the default execution context everywhere, 
 @[highly-synchronous](code/ThreadPools.scala)
 
 This profile is recommended for Java applications that do synchronous IO, since it is harder in Java to dispatch work to other threads.
+
+Note that we use the same value for `parallelism-min` and `parallelism-max`. The reason is that the number of threads is defined by the following formulas :
+
+>base-nb-threads = nb-processors * parallelism-factor
+ parallelism-min <= actual-nb-threads <= parallelism-max
+
+So if you don't have enough available processors, you will never be able to reach the `parallelism-max` setting.
 
 ### Many specific thread pools
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api.libs.iteratee
 
@@ -115,7 +115,7 @@ object ConcurrentSpec extends Specification
         val result =
           fastEnumerator |>>>
             (Concurrent.buffer(20) &>>
-              slowIteratee).flatMap { l => println(l); Iteratee.getChunks.map(l ++ (_: List[Long]))(preparedMapEC) }(flatMapEC)
+              slowIteratee).flatMap { l => Iteratee.getChunks.map(l ++ (_: List[Long]))(preparedMapEC) }(flatMapEC)
 
         Await.result(result, Duration.Inf) must not equalTo (List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10))
         flatMapEC.executionCount must beGreaterThan(0)

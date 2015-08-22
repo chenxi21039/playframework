@@ -3,23 +3,38 @@ package play.sbt.activator
 import sbt._
 import sbt.Keys._
 import com.typesafe.sbt.S3Plugin._
+import sbt.complete.{Parsers, Parser}
+
+/**
+ * This must be here, and not in build.sbt, since Project.setSbtFiles only works from a .scala file
+ */
+object TemplatesBuild extends Build {
+  lazy val root = (project in file("."))
+    .setSbtFiles(
+      // Load the version from Play's version.sbt
+      // Order is important, load the version first, then load build.sbt which may modify it with the play.version
+      // system property.
+      file("../framework/version.sbt"),
+      file("./build.sbt")
+    )
+}
 
 object Templates {
 
-  val templates = SettingKey[Seq[File]]("activator-templates")
-  val templateParameters = SettingKey[Map[String, String]]("template-parameters")
-  val gitHash = TaskKey[String]("git-hash")
+  val templates = SettingKey[Seq[File]]("activatorTemplates")
+  val templateParameters = SettingKey[Map[String, String]]("templateParameters")
+  val gitHash = TaskKey[String]("gitHash")
   val nonce = TaskKey[Long]("nonce")
 
-  val syncTemplateDir = SettingKey[File]("sync-template-dir")
-  val syncTemplates = TaskKey[Seq[File]]("sync-templates")
+  val syncTemplateDir = SettingKey[File]("syncTemplateDir")
+  val syncTemplates = TaskKey[Seq[File]]("syncTemplates")
 
-  val prepareTemplates = TaskKey[Seq[File]]("prepare-templates")
-  val testTemplates = TaskKey[Unit]("test-templates")
-  val zipTemplates = TaskKey[Seq[File]]("zip-templates")
-  val publishTemplatesTo = SettingKey[String]("publish-templates-to")
-  val doPublishTemplates = TaskKey[Boolean]("do-publish-templates")
-  val publishTemplates = TaskKey[Unit]("publish-templates")
+  val prepareTemplates = TaskKey[Seq[File]]("prepareTemplates")
+  val testTemplates = TaskKey[Unit]("testTemplates")
+  val zipTemplates = TaskKey[Seq[File]]("zipTemplates")
+  val publishTemplatesTo = SettingKey[String]("publishTemplatesTo")
+  val doPublishTemplates = TaskKey[Boolean]("doPublishTemplates")
+  val publishTemplates = TaskKey[Unit]("publishTemplates")
 
   val templateSettings: Seq[Setting[_]] = s3Settings ++ Seq(
     templates := Nil,
@@ -43,12 +58,11 @@ object Templates {
     },
 
     prepareTemplates := {
-      streams.value.log.info("Preparing templates...")
       val templateDirs: Seq[File] = templates.value
       val params: Map[String, String] = templateParameters.value
       val outDir: File = target.value / "prepared-templates"
 
-      streams.value.log.info("Preparing templates for Play " + params("PLAY_VERSION"))
+      streams.value.log.info("Preparing templates for Play " + params("PLAY_VERSION") + " with Scala " + params("SCALA_VERSION"))
 
       // Don't sync directories or .gitkeep files. We can remove
       // .gitkeep files. These files are only there to make sure we preserve
@@ -62,8 +76,8 @@ object Templates {
       Sync(streams.value.cacheDirectory / "prepared-templates")(mappings)
 
       mappings.foreach {
-        case (_, file) =>
-          val contents = IO.read(file)
+        case (original, file) =>
+          val contents = IO.read(original)
           val newContents = params.foldLeft(contents) { (str, param) =>
             str.replace("%" + param._1 + "%", param._2)
           }
@@ -134,7 +148,7 @@ object Templates {
       }
     },
 
-    publishTemplatesTo := "typesafe.com",
+    publishTemplatesTo := "api.typesafe.com",
     doPublishTemplates := {
       val host = publishTemplatesTo.value
       val creds = Credentials.forHost(credentials.value, host).getOrElse {
@@ -255,9 +269,41 @@ object Templates {
         case true => ()
         case false => throw new TemplatePublishFailed
       }
+    },
+
+    commands += templatesCommand
+  )
+
+  val templatesCommand = Command("templates", Help.more("templates", "Execute the given command for the given templates"))(templatesParser) { (state, args) =>
+    val (templateDirs, command) = args
+    val extracted = Project.extract(state)
+
+    def createSetCommand(dirs: Seq[File]): String = {
+      dirs.map("file(\"" + _.getAbsolutePath + "\")")
+        .mkString("set play.sbt.activator.Templates.templates := Seq(", ",", ")")
     }
 
-  )
+    val setCommand = createSetCommand(templateDirs)
+    val setBack = templates in extracted.currentRef get extracted.structure.data map createSetCommand toList
+
+    if (command == "") setCommand :: state
+    else setCommand :: command :: setBack ::: state
+  }
+
+  private def templatesParser(state: State): Parser[(Seq[File], String)] = {
+    import Parser._
+    import Parsers._
+    val templates = Project.extract(state).get(Templates.templates)
+    val templateParser = Parsers.OpOrID
+      .examples(templates.map(_.getName): _*)
+      .flatMap { name =>
+        templates.find(_.getName == name) match {
+          case Some(templateDir) => success(templateDir)
+          case None => failure("No template with name " + name)
+        }
+      }
+    (Space ~> rep1sep(templateParser, Space)) ~ (token(Space ~> matched(state.combinedParser)) ?? "")
+  }
 
   private class TemplateBuildFailed(template: String) extends RuntimeException(template) with FeedbackProvidedException
   private class TemplatePublishFailed extends RuntimeException with FeedbackProvidedException
@@ -282,4 +328,6 @@ object Templates {
     .map(_.trim)
     .filterNot(_.isEmpty)
     .map(_.replaceAll("<p>", "").replaceAll("</p>", ""))
+
+  play.api.Logger.configure(play.api.Environment.simple())
 }

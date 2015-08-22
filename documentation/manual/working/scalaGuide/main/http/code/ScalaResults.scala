@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package scalaguide.http.scalaresults {
 
@@ -82,7 +82,7 @@ package scalaguide.http.scalaresults {
     }
 
     def testContentType(results: Result, contentType: String) = {
-      testHeader(results, HeaderNames.CONTENT_TYPE, contentType)
+      results.body.contentType must beSome.which { _ must contain(contentType) }
     }
 
     def testHeader(results: Result, key: String, value: String) = {

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api.libs
 
@@ -52,9 +52,9 @@ object CryptoSpec extends Specification {
       val Secret = "abcdefghijklmnopqrs"
 
       def parseSecret(mode: Mode.Mode, secret: Option[String] = None) = {
-        new CryptoConfigParser(Environment.simple(mode),
-          Configuration.from(
-            secret.map("application.secret" -> _).toMap +
+        new CryptoConfigParser(Environment.simple(mode = mode),
+          Configuration.reference ++ Configuration.from(
+            secret.map("play.crypto.secret" -> _).toMap +
               ("play.crypto.aes.transformation" -> "AES")
           )).get.secret
       }

@@ -1,16 +1,15 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.data;
 
 import java.util.*;
-import play.libs.F;
 
 public class AnotherUser {
 
     private String name;
-    private final List<String> emails = new ArrayList<String>();
-    private F.Option<String> company = new F.None<String>();
+    private final List<String> emails = new ArrayList<>();
+    private Optional<String> company = Optional.empty();
 
     public void setName(String name) {
         this.name = name;
@@ -20,11 +19,11 @@ public class AnotherUser {
         return name;
     }
 
-    public void setCompany(F.Option<String> company) {
+    public void setCompany(Optional<String> company) {
         this.company = company;
     }
 
-    public F.Option<String> getCompany() {
+    public Optional<String> getCompany() {
         return company;
     }
 

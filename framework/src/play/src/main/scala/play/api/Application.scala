@@ -1,26 +1,29 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api
 
 import javax.inject.Inject
 
+import akka.actor.ActorSystem
+import akka.stream.{ ActorMaterializer, Materializer }
 import com.google.inject.Singleton
 import play.api.http._
+import play.api.libs.Files.{ DefaultTemporaryFileCreator, TemporaryFileCreator }
+import play.api.mvc.EssentialFilter
+import play.api.routing.Router
 import play.api.inject.{ SimpleInjector, NewInstanceInjector, Injector, DefaultApplicationLifecycle }
 import play.api.libs.{ Crypto, CryptoConfigParser, CryptoConfig }
-import play.core._
+import play.api.libs.concurrent.ActorSystemProvider
+import play.core.{ SourceMapper, WebCommands }
 import play.utils._
-
-import play.api.mvc._
 
 import java.io._
 
 import annotation.implicitNotFound
 
 import reflect.ClassTag
-import scala.util.control.NonFatal
-import scala.concurrent.{ Future, ExecutionException }
+import scala.concurrent.Future
 
 /**
  * A Play application.
@@ -89,20 +92,30 @@ trait Application {
   def plugin[T](implicit ct: ClassTag[T]): Option[T] = plugin(ct.runtimeClass).asInstanceOf[Option[T]]
 
   /**
+   * The default ActorSystem used by the application.
+   */
+  def actorSystem: ActorSystem
+
+  /**
+   * The default Materializer used by the application.
+   */
+  implicit def materializer: Materializer
+
+  /**
    * Cached value of `routes`. For performance, don't synchronize
    * the value. We always use the same logic to calculate its value
    * so it will end up consistent across threads anyway.
    */
-  private var cachedRoutes: Router.Routes = null
+  private var cachedRoutes: Router = null
 
   /**
    * The router used by this application.
    */
   @deprecated("Either use HttpRequestHandler, or have the router injected", "2.4.0")
-  def routes: Router.Routes = {
+  def routes: Router = {
     // Use a cached value because the injector might be slow
     if (cachedRoutes != null) cachedRoutes else {
-      cachedRoutes = injector.instanceOf[Router.Routes]
+      cachedRoutes = injector.instanceOf[Router]
       cachedRoutes
     }
   }
@@ -148,7 +161,7 @@ trait Application {
    * @param relativePath the relative path of the file to fetch
    * @return an existing file
    */
-  def getExistingFile(relativePath: String): Option[File] = Option(getFile(relativePath)).filter(_.exists)
+  def getExistingFile(relativePath: String): Option[File] = Some(getFile(relativePath)).filter(_.exists)
 
   /**
    * Scans the application classloader to retrieve a resource.
@@ -165,10 +178,8 @@ trait Application {
    * @return the resource URL, if found
    */
   def resource(name: String): Option[java.net.URL] = {
-    Option(classloader.getResource(Option(name).map {
-      case s if s.startsWith("/") => s.drop(1)
-      case s => s
-    }.get))
+    val n = name.stripPrefix("/")
+    Option(classloader.getResource(n))
   }
 
   /**
@@ -186,10 +197,8 @@ trait Application {
    * @return a stream, if found
    */
   def resourceAsStream(name: String): Option[InputStream] = {
-    Option(classloader.getResourceAsStream(Option(name).map {
-      case s if s.startsWith("/") => s.drop(1)
-      case s => s
-    }.get))
+    val n = name.stripPrefix("/")
+    Option(classloader.getResourceAsStream(n))
   }
 
   /**
@@ -205,17 +214,30 @@ trait Application {
   def injector: Injector = NewInstanceInjector
 }
 
-private[play] object Application {
+object Application {
   /**
-   * Creates a function that uses an inline cache to optimize calls to
-   * `application.injector.instanceOf[T]`. This is useful because
-   * hitting Guice multiple times on every request has been shown to
-   * be quite slow.
+   * Creates a function that caches results of calls to
+   * `app.injector.instanceOf[T]`. The cache speeds up calls
+   * when called with the same Application each time, which is
+   * a big benefit in production. It still works properly if
+   * called with a different Application each time, such as
+   * when running unit tests, but it will run more slowly.
+   *
+   * Since values are cached, it's important that this is only
+   * used for singleton values.
+   *
+   * This method avoids synchronization so it's possible that
+   * the injector might be called more than once for a single
+   * instance if this method is called from different threads
+   * at the same time.
    *
    * The cache uses a WeakReference to both the Application and
-   * the returned instance.
+   * the returned instance so it will not cause memory leaks.
+   * Unlike WeakHashMap it doesn't use a ReferenceQueue, so values
+   * will still be cleaned even if the ReferenceQueue is never
+   * activated.
    */
-  private[play] def instanceCache[T: ClassTag]: Application => T =
+  def instanceCache[T: ClassTag]: Application => T =
     new InlineCache((app: Application) => app.injector.instanceOf[T])
 }
 
@@ -228,6 +250,8 @@ class DefaultApplication @Inject() (environment: Environment,
     override val configuration: Configuration,
     override val requestHandler: HttpRequestHandler,
     override val errorHandler: HttpErrorHandler,
+    override val actorSystem: ActorSystem,
+    override val materializer: Materializer,
     override val plugins: Plugins) extends Application {
 
   def path = environment.rootPath
@@ -248,19 +272,25 @@ trait BuiltInComponents {
   def webCommands: WebCommands
   def configuration: Configuration
 
-  def routes: Router.Routes
+  def router: Router
 
-  lazy val injector: Injector = new SimpleInjector(NewInstanceInjector) + routes + crypto + httpConfiguration
+  lazy val injector: Injector = new SimpleInjector(NewInstanceInjector) + router + crypto + httpConfiguration + tempFileCreator
 
   lazy val httpConfiguration: HttpConfiguration = HttpConfiguration.fromConfiguration(configuration)
-  lazy val httpRequestHandler: HttpRequestHandler = new DefaultHttpRequestHandler(routes, httpErrorHandler, httpConfiguration)
+  lazy val httpRequestHandler: HttpRequestHandler = new DefaultHttpRequestHandler(router, httpErrorHandler, httpConfiguration, httpFilters: _*)
   lazy val httpErrorHandler: HttpErrorHandler = new DefaultHttpErrorHandler(environment, configuration, sourceMapper,
-    Some(routes))
+    Some(router))
+  lazy val httpFilters: Seq[EssentialFilter] = Nil
 
   lazy val applicationLifecycle: DefaultApplicationLifecycle = new DefaultApplicationLifecycle
   lazy val application: Application = new DefaultApplication(environment, applicationLifecycle, injector,
-    configuration, httpRequestHandler, httpErrorHandler, Plugins.empty)
+    configuration, httpRequestHandler, httpErrorHandler, actorSystem, materializer, Plugins.empty)
+
+  lazy val actorSystem: ActorSystem = new ActorSystemProvider(environment, configuration, applicationLifecycle).get
+  implicit lazy val materializer: Materializer = ActorMaterializer()(actorSystem)
 
   lazy val cryptoConfig: CryptoConfig = new CryptoConfigParser(environment, configuration).get
   lazy val crypto: Crypto = new Crypto(cryptoConfig)
+
+  lazy val tempFileCreator: TemporaryFileCreator = new DefaultTemporaryFileCreator(applicationLifecycle)
 }

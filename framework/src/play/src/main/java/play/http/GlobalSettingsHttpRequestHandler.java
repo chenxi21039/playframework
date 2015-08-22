@@ -1,9 +1,10 @@
 /*
- * Copyright (C) 2009-2014 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.http;
 
 import play.api.GlobalSettings;
+import play.core.j.JavaGlobalSettingsAdapter;
 import play.mvc.Action;
 import play.mvc.Http;
 
@@ -26,8 +27,8 @@ public class GlobalSettingsHttpRequestHandler extends DefaultHttpRequestHandler 
 
     @Override
     public Action createAction(Http.Request request, Method actionMethod) {
-        if (global instanceof play.GlobalSettings) {
-            return ((play.GlobalSettings) global).onRequest(request, actionMethod);
+        if (global instanceof JavaGlobalSettingsAdapter) {
+            return ((JavaGlobalSettingsAdapter) global).underlying().onRequest(request, actionMethod);
         } else {
             return super.createAction(request, actionMethod);
         }

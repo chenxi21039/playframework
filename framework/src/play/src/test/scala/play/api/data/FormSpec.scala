@@ -1,11 +1,12 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api.data
 
 import play.api.data.Forms._
 import play.api.data.validation.Constraints._
 import play.api.data.format.Formats._
+import play.api.libs.json.Json
 import org.specs2.mutable.Specification
 import org.joda.time.{ DateTime, LocalDate }
 
@@ -173,6 +174,11 @@ object FormSpec extends Specification {
       f4.errors must beEmpty
     }
 
+    "apply constraints on char fields" in {
+      val f = ScalaForms.charForm.fillAndValidate('M')
+      f.errors must beEmpty
+    }
+
     "not even attempt to validate on fill" in {
       val failingValidatorForm = Form(
         "foo" -> Forms.text.verifying("isEmpty", s =>
@@ -268,9 +274,20 @@ object FormSpec extends Specification {
     result should beFalse
   }
 
+  "support boolean binding from json" in {
+    ScalaForms.booleanForm.bind(Json.obj("accepted" -> "true")).get must beTrue
+    ScalaForms.booleanForm.bind(Json.obj("accepted" -> "false")).get must beFalse
+  }
+
+  "reject boolean binding from an invalid json" in {
+    val f = ScalaForms.booleanForm.bind(Json.obj("accepted" -> "foo"))
+    f.errors must not be 'empty
+  }
 }
 
 object ScalaForms {
+
+  val booleanForm = Form("accepted" -> Forms.boolean)
 
   case class User(name: String, age: Int)
 
@@ -349,4 +366,6 @@ object ScalaForms {
   val shortNumberForm = Form("shortNumber" -> shortNumber(10, 42))
 
   val byteNumberForm = Form("byteNumber" -> shortNumber(10, 42))
+
+  val charForm = Form("gender" -> char)
 }

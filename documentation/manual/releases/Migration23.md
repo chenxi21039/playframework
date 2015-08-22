@@ -1,4 +1,4 @@
-<!--- Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com> -->
+<!--- Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com> -->
 # Play 2.3 Migration Guide
 
 This is a guide for migrating from Play 2.2 to Play 2.3. If you need to migrate from an earlier version of Play then you must first follow the [[Play 2.2 Migration Guide|Migration22]].
@@ -19,7 +19,7 @@ All the features that were available with the `play` command are still available
 
 ### Activator distribution
 
-Play is distributed as an Activator distribution that contains all Play's dependencies. You can download this distribution from the [Play download](http://www.playframework.com/download) page.
+Play is distributed as an Activator distribution that contains all Play's dependencies. You can download this distribution from the [Play download](https://www.playframework.com/download) page.
 
 If you prefer, you can also download a minimal (1MB) version of Activator from the [Activator site](https://typesafe.com/activator). Look for the "mini" distribution on the download page. The minimal version of Activator will only download dependencies when they're needed.
 
@@ -149,7 +149,7 @@ The largest new feature for Play 2.3 is the introduction of [sbt-web](https://gi
 * Play is less opinionated on the Html, CSS and JavaScript; and
 * sbt-web can have its own community and thrive in parallel to Play's.
 
-There are other advantages including the fact that sbt-web plugins are able to run within the JVM via [Trireme](https://github.com/apigee/trireme#trireme), or natively using [Node.js](http://nodejs.org/). Note that sbt-web is a development environment and does not participate in the execution of a Play application. Trireme is used by default, but if you have Node.js installed and want blistering performance for your builds then you can provide a system property via sbt's SBT_OPTS environment variable. For example:
+There are other advantages including the fact that sbt-web plugins are able to run within the JVM via [Trireme](https://github.com/apigee/trireme#trireme), or natively using [Node.js](https://nodejs.org/). Note that sbt-web is a development environment and does not participate in the execution of a Play application. Trireme is used by default, but if you have Node.js installed and want blistering performance for your builds then you can provide a system property via sbt's SBT_OPTS environment variable. For example:
 
 ```bash
 export SBT_OPTS="$SBT_OPTS -Dsbt.jse.engineType=Node"
@@ -492,7 +492,7 @@ The WS API has changed slightly, and `WS.client` now returns an instance of `WSC
 
 There are various changes included for Anorm in this new release.
 
-For improved type safety, type of query parameter must be visible, so that it [can be properly converted](https://github.com/playframework/playframework/blob/master/documentation/manual/scalaGuide/main/sql/ScalaAnorm.md#edge-cases). Now using `Any` as parameter value, explicitly or due to erasure, leads to compilation error `No implicit view available from Any => anorm.ParameterValue`.
+For improved type safety, type of query parameter must be visible, so that it [[can be properly converted|ScalaAnorm#edge-cases]]. Now using `Any` as parameter value, explicitly or due to erasure, leads to compilation error `No implicit view available from Any => anorm.ParameterValue`.
 
 ```scala
 // Wrong

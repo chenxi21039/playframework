@@ -1,5 +1,7 @@
-<!--- Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com> -->
+<!--- Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com> -->
 # Handling form submission
+
+Before you start with Play forms, read the documentation on the [[Play enhancer|PlayEnhancer]]. The Play enhancer generates accessors for fields in Java classes for you, so that you don't have to generate them yourself. You may decide to use this as a convenience. All the examples below show manually writing accessors for your classes.
 
 ## Defining a form
 
@@ -9,7 +11,7 @@ The `play.data` package contains several helpers to handle HTTP form data submis
 
 @[create](code/javaguide/forms/JavaForms.java)
 
-> **Note:** The underlying binding is done using [Spring data binder](http://static.springsource.org/spring/docs/3.0.x/reference/validation.html).
+> **Note:** The underlying binding is done using [Spring data binder](https://docs.spring.io/spring/docs/3.0.x/reference/validation.html).
 
 This form can generate a `User` result value from `HashMap<String,String>` data:
 
@@ -35,7 +37,7 @@ The message returned in the above example will become a global error.
 
 The `validate`-method can return the following types: `String`, `List<ValidationError>` or `Map<String,List<ValidationError>>`
 
-`validate` method is called after checking annotation-based constraints and only if they pass.  If validation passes you must return `null` . Returning any not-`null` value (empty string or empty list) is treated as failed validation.
+`validate` method is called after checking annotation-based constraints and only if they pass.  If validation passes you must return `null` . Returning any non-`null` value (empty string or empty list) is treated as failed validation.
 
 `List<ValidationError>` may be useful when you have additional validations for fields. For example:
 
@@ -68,7 +70,7 @@ Sometimes you’ll want to fill a form with existing values, typically for editi
 
 ## Handling a form that is not related to a Model
 
-You can use a `DynamicForm` if you need to retrieve data from an html form that is not related to a `Model` :
+You can use a `DynamicForm` if you need to retrieve data from an html form that is not related to a `Model`:
 
 @[dynamic](code/javaguide/forms/JavaForms.java)
 
@@ -79,7 +81,7 @@ For an object like JodaTime's `LocalTime` it could look like this:
 
 @[register-formatter](code/javaguide/forms/JavaForms.java)
 
-When the binding fail an array of errors keys is created, the first one defined in the messages file will be used. This array will generally contain :
+When the binding fails an array of errors keys is created, the first one defined in the messages file will be used. This array will generally contain:
 
     ["error.invalid.<fieldName>", "error.invalid.<type>", "error.invalid"]
 

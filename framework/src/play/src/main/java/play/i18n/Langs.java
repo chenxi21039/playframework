@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2014 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.i18n;
 
@@ -36,7 +36,7 @@ public class Langs {
      * These can be configured in <tt>application.conf</tt>, like so:
      *
      * <pre>
-     * play.modules.i18n.langs="fr,en,de"
+     * play.i18n.langs = ["fr", "en", "de"]
      * </pre>
      *
      * @return The available languages.

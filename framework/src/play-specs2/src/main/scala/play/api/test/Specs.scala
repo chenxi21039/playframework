@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api.test
 
@@ -33,8 +33,9 @@ abstract class WithApplicationLoader(applicationLoader: ApplicationLoader = new 
  *
  * @param app The fake application
  */
-abstract class WithApplication(val app: FakeApplication = FakeApplication()) extends Around with Scope {
+abstract class WithApplication(val app: Application = FakeApplication()) extends Around with Scope {
   implicit def implicitApp = app
+  implicit def implicitFlowMaterializer = app.materializer
   override def around[T: AsResult](t: => T): Result = {
     Helpers.running(app)(AsResult.effectively(t))
   }
@@ -49,9 +50,9 @@ abstract class WithApplication(val app: FakeApplication = FakeApplication()) ext
  * server to use. Defaults to providing a Netty server.
  */
 abstract class WithServer(
-    val app: FakeApplication = FakeApplication(),
+    val app: Application = FakeApplication(),
     val port: Int = Helpers.testServerPort,
-    val serverProvider: ServerProvider = NettyServer.defaultServerProvider) extends Around with Scope {
+    val serverProvider: Option[ServerProvider] = None) extends Around with Scope {
   implicit def implicitApp = app
   implicit def implicitPort: Port = port
 

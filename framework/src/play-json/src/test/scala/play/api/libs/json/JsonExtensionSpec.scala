@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api.libs.json
 
@@ -43,16 +43,16 @@ object Program {
 
 case class Person(name: String, age: Int)
 object Person {
-  implicit val personReads = Json.reads[Person]
-  implicit val personWrites = Json.writes[Person]
+  implicit val personReads: Reads[Person] = Json.reads[Person]
+  implicit val personWrites: OWrites[Person] = Json.writes[Person]
 }
 
 package foreign {
   case class Foreigner(name: String)
 }
 object ForeignTest {
-  implicit val foreignerReads = Json.reads[foreign.Foreigner]
-  implicit val foreignerWrites = Json.writes[foreign.Foreigner]
+  implicit val foreignerReads: Reads[foreign.Foreigner] = Json.reads[foreign.Foreigner]
+  implicit val foreignerWrites: OWrites[foreign.Foreigner] = Json.writes[foreign.Foreigner]
 }
 
 import play.api.libs.json._
@@ -68,7 +68,7 @@ case class VarArgsOnly(ints: Int*)
 case class LastVarArg(name: String, ints: Int*)
 
 object Person2 {
-  implicit val person2Fmt = Json.format[Person2]
+  implicit val person2Fmt: OFormat[Person2] = Json.format[Person2]
 }
 
 object JsonExtensionSpec extends Specification {
@@ -529,6 +529,21 @@ object JsonExtensionSpec extends Specification {
 
     "test case single-field in companion object" in {
       Json.fromJson[Person2](Json.toJson(Person2(List("bob", "bobby")))).get must beEqualTo(Person2(List("bob", "bobby")))
+    }
+
+    "test hygiene" in {
+      val play = ""
+      type LazyHelper = Any; val LazyHelper = ()
+      val scala = ""
+      type String = Any; val String = ""
+      type Unit = Any; val Unit = ""
+      type Any = Nothing; val Any = ""
+      type Int = String; val Int = ""
+
+      implicit val toto2Reads = Json.reads[Toto2]
+      implicit val toto2Writes = Json.writes[Toto2]
+      implicit val toto2Format = Json.format[Toto2]
+      success
     }
 
   }

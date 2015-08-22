@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2014 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.db;
 
@@ -14,7 +14,8 @@ import play.api.Application;
 /**
  * Provides a high-level API for getting JDBC connections.
  */
-public class DB {
+public final class DB {
+	private DB(){}
 
     /**
      * Returns the default datasource.

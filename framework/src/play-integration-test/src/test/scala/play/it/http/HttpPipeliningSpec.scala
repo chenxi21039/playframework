@@ -1,8 +1,9 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.it.http
 
+import play.api.libs.streams.Accumulator
 import play.api.mvc.{ Results, EssentialAction }
 import play.api.test._
 import play.api.test.TestServer
@@ -11,6 +12,8 @@ import play.api.libs.iteratee._
 import play.it._
 import java.util.concurrent.TimeUnit
 import scala.concurrent.Future
+import scala.concurrent.duration.DurationInt
+import akka.pattern.after
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -18,6 +21,8 @@ object NettyHttpPipeliningSpec extends HttpPipeliningSpec with NettyIntegrationS
 object AkkaHttpHttpPipeliningSpec extends HttpPipeliningSpec with AkkaHttpIntegrationSpecification
 
 trait HttpPipeliningSpec extends PlaySpecification with ServerIntegrationSpecification {
+
+  val actorSystem = akka.actor.ActorSystem()
 
   "Play's http pipelining support" should {
 
@@ -34,9 +39,9 @@ trait HttpPipeliningSpec extends PlaySpecification with ServerIntegrationSpecifi
 
     "wait for the first response to return before returning the second" in withServer(EssentialAction { req =>
       req.path match {
-        case "/long" => Iteratee.flatten(Promise.timeout(Done(Results.Ok("long")), 100, TimeUnit.MILLISECONDS))
-        case "/short" => Done(Results.Ok("short"))
-        case _ => Done(Results.NotFound)
+        case "/long" => Accumulator.done(after(100.milliseconds, actorSystem.scheduler)(Future(Results.Ok("long"))))
+        case "/short" => Accumulator.done(Results.Ok("short"))
+        case _ => Accumulator.done(Results.NotFound)
       }
     }) { port =>
       val responses = BasicHttpClient.pipelineRequests(port,
@@ -51,17 +56,17 @@ trait HttpPipeliningSpec extends PlaySpecification with ServerIntegrationSpecifi
 
     "wait for the first response body to return before returning the second" in withServer(EssentialAction { req =>
       req.path match {
-        case "/long" => Done(
+        case "/long" => Accumulator.done(
           Results.Ok.chunked(Enumerator.unfoldM[Int, String](0) { chunk =>
             if (chunk < 3) {
-              Promise.timeout(Some((chunk + 1, chunk.toString)), 50, TimeUnit.MILLISECONDS)
+              after(50.milliseconds, actorSystem.scheduler)(Future(Some((chunk + 1, chunk.toString))))
             } else {
               Future.successful(None)
             }
           })
         )
-        case "/short" => Done(Results.Ok("short"))
-        case _ => Done(Results.NotFound)
+        case "/short" => Accumulator.done(Results.Ok("short"))
+        case _ => Accumulator.done(Results.NotFound)
       }
     }) { port =>
       val responses = BasicHttpClient.pipelineRequests(port,

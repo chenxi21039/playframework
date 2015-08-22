@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api.http
 
@@ -197,7 +197,10 @@ trait Status {
   val UNPROCESSABLE_ENTITY = 422
   val LOCKED = 423
   val FAILED_DEPENDENCY = 424
-  val TOO_MANY_REQUEST = 429
+  val UPGRADE_REQUIRED = 426
+  val TOO_MANY_REQUESTS = 429
+  @deprecated("Use TOO_MANY_REQUESTS instead", "3.0.0")
+  val TOO_MANY_REQUEST = TOO_MANY_REQUESTS
 
   val INTERNAL_SERVER_ERROR = 500
   val NOT_IMPLEMENTED = 501

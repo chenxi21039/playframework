@@ -1,9 +1,9 @@
 /*
- * Copyright (C) 2009-2014 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.core.server
 
-import com.typesafe.config.{ Config, ConfigFactory }
+import com.typesafe.config._
 import java.io.File
 import java.util.Properties
 import play.api.{ Configuration, Mode }
@@ -37,12 +37,13 @@ case class ServerConfig(
 object ServerConfig {
 
   def apply(
-    rootDir: File,
-    port: Option[Int],
+    classLoader: ClassLoader = this.getClass.getClassLoader,
+    rootDir: File = new File("."),
+    port: Option[Int] = Some(9000),
     sslPort: Option[Int] = None,
     address: String = "0.0.0.0",
     mode: Mode.Mode = Mode.Prod,
-    properties: Properties): ServerConfig = {
+    properties: Properties = System.getProperties): ServerConfig = {
     ServerConfig(
       rootDir = rootDir,
       port = port,
@@ -50,41 +51,15 @@ object ServerConfig {
       address = address,
       mode = mode,
       properties = properties,
-      configuration = loadConfiguration(properties, rootDir)
+      configuration = Configuration.load(classLoader, properties, rootDirConfig(rootDir), mode == Mode.Test)
     )
   }
 
   /**
-   * Create a server Configuration object (a wrapper around a Typesafe Config object)
-   * given some Properties. At this moment this just reads from server-reference.conf
-   * and from the given properties.
-   *
-   * @param properties The properties to base the configuration on.
+   * Gets the configuration for the given root directory. Used to construct
+   * the server Configuration.
    */
-  def loadConfiguration(properties: Properties): Configuration = {
-    Configuration(loadDefaultConfig(properties).resolve())
-  }
-
-  /**
-   * Creates a server Configuration with `loadConfiguration(Properties)` but also
-   * sets the given rootDir property as a low-priority configuration option
-   * with the key "play.server.dir".
-   */
-  def loadConfiguration(properties: Properties, rootDir: File): Configuration = {
-    val javaMap = new java.util.HashMap[String, String]()
-    javaMap.put("play.server.dir", rootDir.getAbsolutePath)
-    val rootDirConfig = ConfigFactory.parseMap(javaMap)
-    val config = loadDefaultConfig(properties).withFallback(rootDirConfig).resolve()
-    Configuration(config)
-  }
-
-  private def loadDefaultConfig(properties: Properties): Config = {
-    // TODO: Flesh the logic out here so it is closer to the standard ConfigFactory.load()
-    // logic. E.g. support reading from server.conf resource, support overriding config
-    // file location with properties, etc.
-    val serverReferenceConfig = ConfigFactory.parseResources("server-reference.conf")
-    val systemPropertyConfig = ConfigFactory.parseProperties(properties)
-    systemPropertyConfig.withFallback(serverReferenceConfig)
-  }
+  def rootDirConfig(rootDir: File): Map[String, String] =
+    Map("play.server.dir" -> rootDir.getAbsolutePath)
 
 }

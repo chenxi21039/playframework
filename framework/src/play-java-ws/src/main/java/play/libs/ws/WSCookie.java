@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.libs.ws;
 
@@ -22,9 +22,7 @@ public interface WSCookie {
 
     public String getPath();
 
-    public Long getExpires();
-
-    public Integer getMaxAge();
+    public Long getMaxAge();
 
     public Boolean isSecure();
 

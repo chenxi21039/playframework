@@ -1,14 +1,15 @@
 /*
- * Copyright (C) 2009-2014 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api.libs.oauth
 
+import akka.util.ByteString
+import play.api.Application
+import play.api.libs.ws.WS
 import play.api.mvc._
 import play.api.test._
-import play.api.Application
 
-import scala.concurrent.{ Promise, Future }
-import play.api.libs.ws.WS
+import scala.concurrent.{ Future, Promise }
 
 class OAuthSpec extends PlaySpecification {
 
@@ -19,6 +20,7 @@ class OAuthSpec extends PlaySpecification {
   val oauthCalculator = OAuthCalculator(consumerKey, requestToken)
 
   "OAuth" should {
+
     "sign a simple get request" in {
       val (request, body, hostUrl) = receiveRequest { implicit app =>
         hostUrl =>
@@ -26,6 +28,7 @@ class OAuthSpec extends PlaySpecification {
       }
       OAuthRequestVerifier.verifyRequest(request, body, hostUrl, consumerKey, requestToken)
     }
+
     "sign a get request with query parameters" in {
       val (request, body, hostUrl) = receiveRequest { implicit app =>
         hostUrl =>
@@ -33,6 +36,7 @@ class OAuthSpec extends PlaySpecification {
       }
       OAuthRequestVerifier.verifyRequest(request, body, hostUrl, consumerKey, requestToken)
     }
+
     "sign a post request with a body" in {
       val (request, body, hostUrl) = receiveRequest { implicit app =>
         hostUrl =>
@@ -42,12 +46,12 @@ class OAuthSpec extends PlaySpecification {
     }
   }
 
-  def receiveRequest(makeRequest: Application => String => Future[_]): (RequestHeader, Array[Byte], String) = {
+  def receiveRequest(makeRequest: Application => String => Future[_]): (RequestHeader, ByteString, String) = {
     val hostUrl = "http://localhost:" + testServerPort
-    val promise = Promise[(RequestHeader, Array[Byte])]()
+    val promise = Promise[(RequestHeader, ByteString)]()
     val app = FakeApplication(withRoutes = {
       case _ => Action(BodyParsers.parse.raw) { request =>
-        promise.success((request, request.body.asBytes().getOrElse(Array.empty[Byte])))
+        promise.success((request, request.body.asBytes().getOrElse(ByteString.empty)))
         Results.Ok
       }
     })

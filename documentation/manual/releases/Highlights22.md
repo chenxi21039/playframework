@@ -1,4 +1,4 @@
-<!--- Copyright (C) 2009-2013 Typesafe Inc. <http://www.typesafe.com> -->
+<!--- Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com> -->
 # What's new in Play 2.2
 
 ## New results structure for Java and Scala
@@ -20,13 +20,13 @@ def index = Action.async {
 
 ## Better control over buffering and keep alive
 
-How and when Play buffers results is now better expressed in the Scala API, [`SimpleResult`](api/scala/index.html#play.api.mvc.SimpleResult) has a new property called `connection`, which is of type [`HttpConnection`](api/scala/index.html#play.api.mvc.HttpConnection$).
+How and when Play buffers results is now better expressed in the Scala API, `SimpleResult` has a new property called `connection`, which is of type `HttpConnection`.
 
 If set to `Close`, the response will be closed once the body is sent, and no buffering will be attempted.  If set to `KeepAlive`, Play will make a best effort attempt to keep the connection alive, in accordance to the HTTP spec, buffering the response if only no transfer encoding or content length is specified.
 
 ## New action composition and action builder methods
 
-We now provide an [`ActionBuilder`](api/scala/index.html#play.api.mvc.ActionBuilder) trait for Scala applications that allows more powerful building of action stacks.  For example:
+We now provide an [`ActionBuilder`](api/scala/play/api/mvc/ActionBuilder.html) trait for Scala applications that allows more powerful building of action stacks.  For example:
 
 ```scala
 object MyAction extends ActionBuilder[AuthenticatedRequest] {
@@ -87,7 +87,7 @@ The _stage_ and _dist_ tasks have been completely overhauled in order to use the
 
 The benefit in using the Native Packager is that many types of archive can now be supported in addition to regular zip files e.g. tar.gz, RPM, OS X disk images, Microsoft Installers (MSI) and more. In addition a Windows batch script is now provided for Play as well as a Unix one.
 
-More information can be found in the [[Creating a standalone version of your application|ProductionDist]] document.
+More information can be found in the [[Deploying your application|Production]] document.
 
 ## Built in gzip support
 

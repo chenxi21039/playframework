@@ -3,7 +3,7 @@ package play.api.libs.streams.impl
 import org.reactivestreams._
 import play.api.libs.concurrent.StateMachine
 import play.api.libs.iteratee._
-import scala.concurrent.{ ExecutionContext, Future, Promise }
+import scala.concurrent.Promise
 import scala.util.{ Failure, Success, Try }
 
 import scala.language.higherKinds
@@ -173,6 +173,27 @@ private[streams] class EnumeratorSubscription[T, U >: T](
   }
 
   /**
+   * Called when the enumerator is complete. If the enumerator didn't feed
+   * EOF into the iteratee, then this is where the subscriber will be
+   * completed. If the enumerator encountered an error, this error will be
+   * sent to the subscriber.
+   */
+  private def enumeratorApplicationComplete(result: Try[_]): Unit = exclusive {
+    case Requested(_, _) =>
+      state = Completed
+      result match {
+        case Failure(error) =>
+          subr.onError(error)
+        case Success(_) =>
+          subr.onComplete()
+      }
+    case Cancelled =>
+      ()
+    case Completed =>
+      () // Subscriber was already completed when the enumerator produced EOF
+  }
+
+  /**
    * Called when we want to read an input element from the Enumerator. This
    * method attaches an Iteratee to the end of the Iteratee chain. The
    * Iteratee it attaches will call one of the `*Enumerated` methods when
@@ -197,7 +218,7 @@ private[streams] class EnumeratorSubscription[T, U >: T](
     }
     its match {
       case Unattached =>
-        enum(iteratee)
+        enum(iteratee).onComplete(enumeratorApplicationComplete)(Execution.trampoline)
       case Attached(link0) =>
         link0.success(iteratee)
     }
