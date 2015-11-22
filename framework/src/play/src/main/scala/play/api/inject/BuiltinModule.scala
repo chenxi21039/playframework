@@ -3,15 +3,18 @@
  */
 package play.api.inject
 
+import java.util.concurrent.Executor
+
 import akka.actor.ActorSystem
 import javax.inject.{ Singleton, Inject, Provider }
 import akka.stream.Materializer
 import play.api._
 import play.api.http._
-import play.api.libs.Files.{ DefaultTemporaryFileCreator, TemporaryFileCreator, TemporaryFile }
+import play.api.libs.Files.{ DefaultTemporaryFileCreator, TemporaryFileCreator }
 import play.api.libs.{ CryptoConfig, Crypto, CryptoConfigParser }
 import play.api.libs.concurrent.{ MaterializerProvider, ExecutionContextProvider, ActorSystemProvider }
 import play.api.routing.Router
+import play.libs.concurrent.HttpExecutionContext
 
 import scala.concurrent.ExecutionContext
 
@@ -45,6 +48,8 @@ class BuiltinModule extends Module {
       bind[ActorSystem].toProvider[ActorSystemProvider],
       bind[Materializer].toProvider[MaterializerProvider],
       bind[ExecutionContext].toProvider[ExecutionContextProvider],
+      bind[Executor].toProvider[ExecutionContextProvider],
+      bind[HttpExecutionContext].toSelf,
       bind[Plugins].toProvider[PluginsProvider],
 
       bind[CryptoConfig].toProvider[CryptoConfigParser],

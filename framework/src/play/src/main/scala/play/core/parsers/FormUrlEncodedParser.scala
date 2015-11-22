@@ -3,8 +3,6 @@
  */
 package play.core.parsers
 
-import scala.collection.immutable.ListMap
-
 /** An object for parsing application/x-www-form-urlencoded data */
 object FormUrlEncodedParser {
 
@@ -39,15 +37,29 @@ object FormUrlEncodedParser {
 
   /**
    * Parse the content type "application/x-www-form-urlencoded", mapping to a Java compatible format.
-   * @param data
-   * @param encoding
-   * @return
+   * @param data The body content of the request, or whatever needs to be so parsed
+   * @param encoding The character encoding of data
+   * @return A Map of keys to the sequence of values for that key
    */
   def parseAsJava(data: String, encoding: String): java.util.Map[String, java.util.List[String]] = {
     import scala.collection.JavaConverters._
     parse(data, encoding).map {
       case (key, values) =>
         key -> values.asJava
+    }.asJava
+  }
+
+  /**
+   * Parse the content type "application/x-www-form-urlencoded", mapping to a Java compatible format.
+   * @param data The body content of the request, or whatever needs to be so parsed
+   * @param encoding The character encoding of data
+   * @return A Map of keys to the sequence of array values for that key
+   */
+  def parseAsJavaArrayValues(data: String, encoding: String): java.util.Map[String, Array[String]] = {
+    import scala.collection.JavaConverters._
+    parse(data, encoding).map {
+      case (key, values) =>
+        key -> values.toArray
     }.asJava
   }
 

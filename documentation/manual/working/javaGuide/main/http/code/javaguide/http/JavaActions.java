@@ -4,12 +4,12 @@
 package javaguide.http;
 
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 
 import org.junit.Test;
-import play.libs.F;
 import play.mvc.Controller;
 import play.mvc.Result;
-import play.test.Helpers;
 
 import javaguide.testhelpers.MockJavaAction;
 import play.test.WithApplication;
@@ -28,7 +28,7 @@ public class JavaActions extends WithApplication {
                 return ok("Got request " + request() + "!");
             }
             //#simple-action
-        }, fakeRequest()).status(), equalTo(200));
+        }, fakeRequest(), mat).status(), equalTo(200));
     }
 
     @Test
@@ -37,7 +37,7 @@ public class JavaActions extends WithApplication {
             public Result index() {
                 return new javaguide.http.full.Application().index();
             }
-        }, fakeRequest()).status(), equalTo(200));
+        }, fakeRequest(), mat).status(), equalTo(200));
     }
 
     @Test
@@ -49,10 +49,10 @@ public class JavaActions extends WithApplication {
             }
             //#params-action
 
-            public F.Promise<Result> invocation() {
-                return F.Promise.pure(index("world"));
+            public CompletionStage<Result> invocation() {
+                return CompletableFuture.completedFuture(index("world"));
             }
-        }, fakeRequest());
+        }, fakeRequest(), mat);
         assertThat(result.status(), equalTo(200));
         assertThat(contentAsString(result), equalTo("Hello world"));
     }
@@ -65,7 +65,7 @@ public class JavaActions extends WithApplication {
                 return ok("Hello world!");
             }
             //#simple-result
-        }, fakeRequest()).status(), equalTo(200));
+        }, fakeRequest(), mat).status(), equalTo(200));
     }
 
     @Test
@@ -110,7 +110,7 @@ public class JavaActions extends WithApplication {
                 return redirect("/user/home");
             }
             //#redirect-action
-        }, fakeRequest());
+        }, fakeRequest(), mat);
         assertThat(result.status(), equalTo(SEE_OTHER));
         assertThat(result.header(LOCATION), equalTo(Optional.of("/user/home")));
     }
@@ -123,7 +123,7 @@ public class JavaActions extends WithApplication {
                 return temporaryRedirect("/user/home");
             }
             //#temporary-redirect-action
-        }, fakeRequest());
+        }, fakeRequest(), mat);
         assertThat(result.status(), equalTo(TEMPORARY_REDIRECT));
         assertThat(result.header(LOCATION), equalTo(Optional.of("/user/home")));
     }

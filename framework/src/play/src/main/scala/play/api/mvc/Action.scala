@@ -135,7 +135,7 @@ trait Action[A] extends EssentialAction {
  *
  * @tparam A the body content type
  */
-trait BodyParser[+A] extends Function1[RequestHeader, Accumulator[ByteString, Either[Result, A]]] {
+trait BodyParser[+A] extends (RequestHeader => Accumulator[ByteString, Either[Result, A]]) {
   self =>
 
   /**
@@ -146,7 +146,7 @@ trait BodyParser[+A] extends Function1[RequestHeader, Accumulator[ByteString, Ei
    * @param ec The context to execute the supplied function with.
    *        The context is prepared on the calling thread.
    * @return the transformed body parser
-   * @see [[play.api.libs.iteratee.Iteratee#map]]
+   * @see [[play.api.libs.iteratee.Iteratee.map]]
    */
   def map[B](f: A => B)(implicit ec: ExecutionContext): BodyParser[B] = {
     // prepare execution context as body parser object may cross thread boundary
@@ -166,7 +166,7 @@ trait BodyParser[+A] extends Function1[RequestHeader, Accumulator[ByteString, Ei
    *        The context prepared on the calling thread.
    * @return the transformed body parser
    * @see [[map]]
-   * @see [[play.api.libs.iteratee.Iteratee#mapM]]
+   * @see [[play.api.libs.iteratee.Iteratee.mapM]]
    */
   def mapM[B](f: A => Future[B])(implicit ec: ExecutionContext): BodyParser[B] = {
     // prepare execution context as body parser object may cross thread boundary
@@ -263,7 +263,7 @@ object BodyParser {
    * }
    * }}}
    */
-  @deprecated("Use Akka streams instead", "2.5.0")
+  @deprecated("Use apply instead", "2.5.0")
   def iteratee[T](f: RequestHeader => Iteratee[ByteString, Either[Result, T]]): BodyParser[T] = {
     iteratee("(no name)")(f)
   }
@@ -278,7 +278,7 @@ object BodyParser {
    * }
    * }}}
    */
-  @deprecated("Use Akka streams instead", "2.5.0")
+  @deprecated("Use apply instead", "2.5.0")
   def iteratee[T](debugName: String)(f: RequestHeader => Iteratee[ByteString, Either[Result, T]]): BodyParser[T] = new BodyParser[T] {
     def apply(rh: RequestHeader) = Streams.iterateeToAccumulator(f(rh))
     override def toString = "BodyParser(" + debugName + ")"

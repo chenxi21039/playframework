@@ -11,7 +11,7 @@ import play.api.http.{ HttpEntity => PlayHttpEntity, HttpChunk }
 import play.api.http.HeaderNames._
 import play.api.libs.iteratee._
 import play.api.mvc._
-import play.core.server.common.{ ForwardedHeaderHandler, ServerRequestUtils, ServerResultUtils }
+import play.core.server.common.{ ConnectionInfo, ForwardedHeaderHandler, ServerResultUtils }
 import scala.collection.immutable
 
 /**
@@ -62,16 +62,11 @@ private[akkahttp] class ModelConversion(forwardedHeaderHandler: ForwardedHeaderH
       override def version = request.protocol.value
       override def queryString = request.uri.query.toMultiMap
       override val headers = convertRequestHeaders(request)
-      override def remoteAddress: String = ServerRequestUtils.findRemoteAddress(
-        forwardedHeaderHandler,
-        headers,
-        remoteAddressArg
-      )
-      override def secure: Boolean = ServerRequestUtils.findSecureProtocol(
-        forwardedHeaderHandler,
-        headers,
-        secureProtocol
-      )
+      private lazy val remoteConnection: ConnectionInfo = {
+        forwardedHeaderHandler.remoteConnection(remoteAddressArg.getAddress, secureProtocol, headers)
+      }
+      override def remoteAddress = remoteConnection.address.getHostAddress
+      override def secure = remoteConnection.secure
     }
   }
 
@@ -108,9 +103,8 @@ private[akkahttp] class ModelConversion(forwardedHeaderHandler: ForwardedHeaderH
         // FIXME: should do something with the content-length?
         pubr
       case HttpEntity.Chunked(contentType, chunks) =>
-        // FIXME: Don't enumerate LastChunk?
         // FIXME: do something with trailing headers?
-        chunks.map(_.data())
+        chunks.takeWhile(!_.isLastChunk).map(_.data())
     }
   }
 

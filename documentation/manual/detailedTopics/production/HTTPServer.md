@@ -61,7 +61,7 @@ http {
 
   proxy_buffering    off;
   proxy_set_header   X-Real-IP $remote_addr;
-  proxy_set_header   X-Scheme $scheme;
+  proxy_set_header   X-Forwarded-Proto $scheme;
   proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
   proxy_set_header   Host $http_host;
   proxy_http_version 1.1;
@@ -186,7 +186,7 @@ Apache also provides a way to view the status of your cluster. Simply point your
 
 Because Play is completely stateless you don’t have to manage sessions between the 2 clusters. You can actually easily scale to more than 2 Play instances.
 
-Note that [Apache does not support Websockets](https://issues.apache.org/bugzilla/show_bug.cgi?id=47485), so you may wish to use another front end proxy (such as [HAProxy](http://www.haproxy.org/) or Nginx) that does implement this functionality.
+To use websockets, you must use [mod_proxy_wstunnel](http://httpd.apache.org/docs/2.4/mod/mod_proxy_wstunnel.html), which was introduced in Apache 2.4.
 
 Note that [ProxyPassReverse might rewrite incorrectly headers](https://issues.apache.org/bugzilla/show_bug.cgi?id=51982) adding an extra / to the URIs, so you may wish to use this workaround:
 ```

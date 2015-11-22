@@ -4,15 +4,12 @@
 package play.api.libs.ws
 
 import java.io.Closeable
-
 import java.io.File
 import java.net.URI
-
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 import scala.concurrent.duration.Duration
 import scala.xml.Elem
-
 import akka.stream.Materializer
 import akka.stream.scaladsl.Sink
 import akka.stream.scaladsl.Source
@@ -21,6 +18,7 @@ import play.api.Application
 import play.api.http.Writeable
 import play.api.libs.json.JsValue
 import play.api.libs.iteratee._
+import java.io.IOException
 
 /**
  * The WSClient holds the configuration information needed to build a request, and provides a way to get a request holder.
@@ -43,7 +41,7 @@ trait WSClient extends Closeable {
   def url(url: String): WSRequest
 
   /** Closes this client, and releases underlying resources. */
-  def close(): Unit
+  @throws[IOException] def close(): Unit
 }
 
 /**
@@ -253,9 +251,7 @@ case class InMemoryBody(bytes: ByteString) extends WSBody
  *
  * @param bytes A flow of the bytes of the body
  */
-case class StreamedBody(bytes: Source[ByteString, Unit]) extends WSBody {
-  throw new NotImplementedError("A streaming request body is not yet implemented")
-}
+case class StreamedBody(bytes: Source[ByteString, _]) extends WSBody
 
 /**
  * A file body
@@ -364,7 +360,7 @@ trait WSRequest {
   def withHeaders(hdrs: (String, String)*): WSRequest
 
   /**
-   * adds any number of query string parameters to the
+   * adds any number of query string parameters to this request
    */
   def withQueryString(parameters: (String, String)*): WSRequest
 

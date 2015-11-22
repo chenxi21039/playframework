@@ -73,10 +73,11 @@ object ApplicationBuild extends Build {
     // Don't include sbt files in the resources
     excludeFilter in (Test, unmanagedResources) := (excludeFilter in (Test, unmanagedResources)).value || "*.sbt",
 
-    crossScalaVersions := Seq("2.10.5", "2.11.7"),
+    crossScalaVersions := Seq("2.11.7"),
     scalaVersion := PlayVersion.scalaVersion,
 
-    fork in Test := true
+    fork in Test := true,
+    javaOptions in Test ++= Seq("-Xmx512m", "-Xms128m")
   ).settings(externalPlayModuleSettings:_*)
    .dependsOn(
       playDocs,
@@ -88,6 +89,7 @@ object ApplicationBuild extends Build {
       playProject("Filters-Helpers") % "test",
       playProject("Play-JDBC-Evolutions") % "test",
       playProject("Play-JDBC") % "test",
+      playProject("Play-Logback") % "test",
       playProject("Play-Java-JDBC") % "test"
   )
 

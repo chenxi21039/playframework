@@ -1,7 +1,7 @@
 <!--- Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com> -->
 # H2 database
 
-The H2 in memory database is very convenient for development because your evolutions are run from scratch when play is restarted.  If you are using anorm you probably need it to closely mimic your planned production database.  To tell h2 that you want to mimic a particular database you add a parameter to the database url in your application.conf file, for example:
+The H2 in memory database is very convenient for development because your evolutions are run from scratch when play is restarted.  If you are using Anorm, you probably need it to closely mimic your planned production database.  To tell h2 that you want to mimic a particular database you add a parameter to the database url in your application.conf file, for example:
 
 ```
 db.default.url="jdbc:h2:mem:play;MODE=MYSQL"
@@ -58,7 +58,11 @@ db.default.url="jdbc:h2:mem:play;MODE=MYSQL"
 
 ## Prevent in memory DB reset
 
-H2 drops your database if there are no connections.  You probably don't want this to happen.  To prevent this add `DB_CLOSE_DELAY=-1` to the url (use a semicolon as a separator) eg: `jdbc:h2:mem:play;MODE=MYSQL;DB_CLOSE_DELAY=-1`
+H2, by default, drops your in memory database if there are no connections to it anymore.  You probably don't want this to happen.  To prevent this add `DB_CLOSE_DELAY=-1` to the url (use a semicolon as a separator) eg: `jdbc:h2:mem:play;MODE=MYSQL;DB_CLOSE_DELAY=-1`
+
+## Caveats
+
+H2, by default, creates tables with upper case names. Sometimes you don't want this to happen, for example when using H2 with Play evolutions in some compatibility modes. To prevent this add `DATABASE_TO_UPPER=FALSE` to the url (use a semicolon as a separator) eg: `jdbc:h2:mem:play;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=FALSE`
 
 ## H2 Browser
 

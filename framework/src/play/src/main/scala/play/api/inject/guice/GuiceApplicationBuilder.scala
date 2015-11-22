@@ -3,9 +3,12 @@
  */
 package play.api.inject.guice
 
+import javax.inject.{ Provider, Inject }
+
 import com.google.inject.{ Module => GuiceModule }
-import play.api.{ Application, Configuration, Environment, GlobalSettings, Logger, OptionalSourceMapper }
-import play.api.inject.{ bind, Injector => PlayInjector }
+import play.api.routing.Router
+import play.api._
+import play.api.inject.{ Injector => PlayInjector, RoutesProvider, bind }
 import play.core.{ DefaultWebCommands, WebCommands }
 
 /**
@@ -62,6 +65,19 @@ final class GuiceApplicationBuilder(
     load((env, conf) => modules)
 
   /**
+   * Override the router with the given router.
+   */
+  def router(router: Router): GuiceApplicationBuilder =
+    overrides(bind[Router].toInstance(router))
+
+  /**
+   * Override the router with a router that first tries to route to the passed in additional router, before falling
+   * back to the default router.
+   */
+  def additionalRouter(router: Router): GuiceApplicationBuilder =
+    overrides(bind[Router].to(new AdditionalRouterProvider(router)))
+
+  /**
    * Create a new Play application Module for an Application using this configured builder.
    */
   override def applicationModule(): GuiceModule = {
@@ -69,9 +85,9 @@ final class GuiceApplicationBuilder(
     val appConfiguration = initialConfiguration ++ configuration
     val globalSettings = global.getOrElse(GlobalSettings(appConfiguration, environment))
 
-    // TODO: Logger should be application specific, and available via dependency injection.
-    //       Creating multiple applications will stomp on the global logger configuration.
-    Logger.configure(environment)
+    LoggerConfigurator(environment.classLoader).foreach {
+      _.configure(environment)
+    }
 
     if (appConfiguration.underlying.hasPath("logger")) {
       Logger.warn("Logger configuration in conf files is deprecated and has no effect. Use a logback configuration file instead.")
@@ -119,4 +135,9 @@ final class GuiceApplicationBuilder(
     disabled: Seq[Class[_]],
     eagerly: Boolean): GuiceApplicationBuilder =
     copy(environment, configuration, modules, overrides, disabled, eagerly)
+}
+
+private class AdditionalRouterProvider(additional: Router) extends Provider[Router] {
+  @Inject private var fallback: RoutesProvider = _
+  lazy val get = Router.from(additional.routes.orElse(fallback.get.routes))
 }

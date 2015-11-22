@@ -4,16 +4,21 @@
 
 package play.libs.ws.ning;
 
+import akka.stream.Materializer;
 import akka.stream.javadsl.*;
+import akka.util.ByteString;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.ning.http.client.*;
-import com.ning.http.client.generators.FileBodyGenerator;
-import com.ning.http.client.generators.InputStreamBodyGenerator;
-import com.ning.http.client.oauth.OAuthSignatureCalculator;
-import com.ning.http.util.AsyncHttpProviderUtils;
 
-import org.jboss.netty.handler.codec.http.HttpHeaders;
+import org.asynchttpclient.*;
+import org.asynchttpclient.request.body.generator.FileBodyGenerator;
+import org.asynchttpclient.request.body.generator.InputStreamBodyGenerator;
+import org.asynchttpclient.oauth.OAuthSignatureCalculator;
+import org.asynchttpclient.util.HttpUtils;
+
+import org.reactivestreams.Publisher;
+
+import io.netty.handler.codec.http.HttpHeaders;
 import play.api.libs.ws.ning.*;
 import play.core.parsers.FormUrlEncodedParser;
 import play.libs.F;
@@ -26,6 +31,9 @@ import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.MalformedURLException;
 import java.net.URI;
+import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.CompletionStage;
 
@@ -40,22 +48,24 @@ public class NingWSRequest implements WSRequest {
     private Map<String, Collection<String>> headers = new HashMap<String, Collection<String>>();
     private Map<String, Collection<String>> queryParameters = new HashMap<String, Collection<String>>();
 
-    private String username = null;
-    private String password = null;
-    private WSAuthScheme scheme = null;
-    private WSSignatureCalculator calculator = null;
-    private NingWSClient client = null;
+    private String username;
+    private String password;
+    private WSAuthScheme scheme;
+    private WSSignatureCalculator calculator;
+    private final NingWSClient client;
+
+    private final Materializer materializer;
 
     private int timeout = 0;
     private Boolean followRedirects = null;
     private String virtualHost = null;
 
-    public NingWSRequest(NingWSClient client, String url) {
+    public NingWSRequest(NingWSClient client, String url, Materializer materializer) {
         this.client = client;
         URI reference = URI.create(url);
 
         this.url = url;
-
+        this.materializer = materializer;
         String userInfo = reference.getUserInfo();
         if (userInfo != null) {
             this.setAuth(userInfo);
@@ -68,8 +78,9 @@ public class NingWSRequest implements WSRequest {
     /**
      * Sets a header with the given name, this can be called repeatedly.
      *
-     * @param name
-     * @param value
+     * @param name the header name
+     * @param value the header value
+     * @return the receiving WSRequest, with the new header set.
      */
     @Override
     public NingWSRequest setHeader(String name, String value) {
@@ -220,6 +231,12 @@ public class NingWSRequest implements WSRequest {
     public WSRequest setBody(File body) {
         this.body = body;
         return this;
+    }
+
+    @Override
+    public WSRequest setBody(Source<ByteString,?> body) {
+      this.body = body;
+      return this;
     }
 
     @Override
@@ -404,7 +421,7 @@ public class NingWSRequest implements WSRequest {
     public CompletionStage<StreamedResponse> stream() {
     	AsyncHttpClient asyncClient = (AsyncHttpClient) client.getUnderlying();
     	Request request = buildRequest();
-    	return StreamedResponse.from(StreamedRequest.execute(asyncClient, request));
+    	return StreamedResponse.from(Streamed.execute(asyncClient, request));
     }
 
     Request buildRequest() {
@@ -425,20 +442,16 @@ public class NingWSRequest implements WSRequest {
             if (contentType == null) {
                 contentType = "text/plain";
             }
-            String charset = AsyncHttpProviderUtils.parseCharset(contentType);
+            Charset charset = HttpUtils.parseCharset(contentType);
             if (charset == null) {
-                charset = "utf-8";
+                charset = StandardCharsets.UTF_8;
                 List<String> contentTypeList = new ArrayList<String>();
                 contentTypeList.add(contentType + "; charset=utf-8");
                 headers.replace(HttpHeaders.Names.CONTENT_TYPE, contentTypeList);
             }
 
             byte[] bodyBytes;
-            try {
-                bodyBytes = stringBody.getBytes(charset);
-            } catch (UnsupportedEncodingException e) {
-                throw new RuntimeException(e);
-            }
+            bodyBytes = stringBody.getBytes(charset);
 
             // If using a POST with OAuth signing, the builder looks at
             // getFormParams() rather than getBody() and constructs the signature
@@ -456,7 +469,7 @@ public class NingWSRequest implements WSRequest {
             }
 
             builder.setHeaders(headers);
-            builder.setBodyEncoding(charset);
+            builder.setBodyCharset(charset);
         } else if (body instanceof JsonNode) {
             JsonNode jsonBody = (JsonNode) body;
             FluentCaseInsensitiveStringsMap headers = new FluentCaseInsensitiveStringsMap(this.headers);
@@ -473,7 +486,7 @@ public class NingWSRequest implements WSRequest {
 
             builder.setBody(bodyStr);
             builder.setHeaders(headers);
-            builder.setBodyEncoding("utf-8");
+            builder.setBodyCharset(StandardCharsets.UTF_8);
         } else if (body instanceof File) {
             File fileBody = (File) body;
             FileBodyGenerator bodyGenerator = new FileBodyGenerator(fileBody);
@@ -482,6 +495,10 @@ public class NingWSRequest implements WSRequest {
             InputStream inputStreamBody = (InputStream) body;
             InputStreamBodyGenerator bodyGenerator = new InputStreamBodyGenerator(inputStreamBody);
             builder.setBody(bodyGenerator);
+        } else if (body instanceof Source) {
+          Source<ByteString,?> sourceBody = (Source<ByteString,?>) body;
+          Publisher<ByteBuffer> publisher = sourceBody.map(ByteString::toByteBuffer).runWith(Sink.publisher(), materializer);
+          builder.setBody(publisher);
         } else {
             throw new IllegalStateException("Impossible body: " + body);
         }
@@ -491,7 +508,7 @@ public class NingWSRequest implements WSRequest {
         }
 
         if (this.followRedirects != null) {
-            builder.setFollowRedirects(this.followRedirects);
+            builder.setFollowRedirect(this.followRedirects);
         }
         if (this.virtualHost != null) {
             builder.setVirtualHost(this.virtualHost);
@@ -518,10 +535,10 @@ public class NingWSRequest implements WSRequest {
         final scala.concurrent.Promise<play.libs.ws.WSResponse> scalaPromise = scala.concurrent.Promise$.MODULE$.<play.libs.ws.WSResponse>apply();
         try {
             AsyncHttpClient asyncHttpClient = (AsyncHttpClient) client.getUnderlying();
-            asyncHttpClient.executeRequest(request, new AsyncCompletionHandler<com.ning.http.client.Response>() {
+            asyncHttpClient.executeRequest(request, new AsyncCompletionHandler<org.asynchttpclient.Response>() {
                 @Override
-                public com.ning.http.client.Response onCompleted(com.ning.http.client.Response response) {
-                    final com.ning.http.client.Response ahcResponse = response;
+                public org.asynchttpclient.Response onCompleted(org.asynchttpclient.Response response) {
+                    final org.asynchttpclient.Response ahcResponse = response;
                     scalaPromise.success(new NingWSResponse(ahcResponse));
                     return response;
                 }

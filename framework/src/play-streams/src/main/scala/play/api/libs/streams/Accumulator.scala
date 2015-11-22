@@ -90,12 +90,13 @@ final class Accumulator[-E, +A](sink: Sink[E, Future[A]]) {
    */
   def toSink: Sink[E, Future[A]] = sink
 
+  import scala.annotation.unchecked.{ uncheckedVariance => uV }
   /**
    * Convert this accumulator to a Java Accumulator.
    *
    * @return The Java accumulator.
    */
-  def asJava: play.libs.streams.Accumulator[_ >: E, _ <: A] = {
+  def asJava: play.libs.streams.Accumulator[E @uV, A @uV] = {
     play.libs.streams.Accumulator.fromSink(sink.asJava)
   }
 }
@@ -122,6 +123,22 @@ object Accumulator {
    * the passed in future.
    */
   def done[A](a: Future[A]): Accumulator[Any, A] = new Accumulator(Sink.cancelled[Any].mapMaterializedValue(_ => a))
+
+  /**
+   * Create an accumulator that forwards the stream fed into it to the source it produces.
+   *
+   * This is useful for when you want to send the consumed stream to another API that takes a Source as input.
+   *
+   * Extreme care must be taken when using this accumulator - the source *must always* be materialized and consumed.
+   * If it isn't, this could lead to resource leaks and deadlocks upstream.
+   *
+   * @return An accumulator that forwards the stream to the produced source.
+   */
+  def source[E]: Accumulator[E, Source[E, _]] = {
+    // If Akka streams ever provides Sink.source(), we should use that instead.
+    // https://github.com/akka/akka/issues/18406
+    Accumulator(Sink.publisher[E].mapMaterializedValue(publisher => Future.successful(Source(publisher))))
+  }
 
   /**
    * Flatten a future of an accumulator to an accumulator.

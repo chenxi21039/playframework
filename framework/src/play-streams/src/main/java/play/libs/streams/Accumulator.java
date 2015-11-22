@@ -5,10 +5,12 @@ import akka.stream.javadsl.Flow;
 import akka.stream.javadsl.Keep;
 import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
+import org.reactivestreams.Publisher;
 import scala.compat.java8.FutureConverters;
 import scala.concurrent.Future;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
@@ -95,7 +97,11 @@ public final class Accumulator<E, A> {
                             if (a != null) {
                                 return CompletableFuture.completedFuture(a);
                             } else {
-                                return f.apply(error);
+                                if (error instanceof CompletionException) {
+                                    return f.apply(error.getCause());
+                                } else {
+                                    return f.apply(error);
+                                }
                             }
                         }, executor).thenCompose(Function.identity()))
         );
@@ -164,12 +170,30 @@ public final class Accumulator<E, A> {
     }
 
     /**
+     * Create an accumulator that forwards the stream fed into it to the source it produces.
+     *
+     * This is useful for when you want to send the consumed stream to another API that takes a Source as input.
+     *
+     * Extreme care must be taken when using this accumulator - the source *must always* be materialized and consumed.
+     * If it isn't, this could lead to resource leaks and deadlocks upstream.
+     *
+     * @return An accumulator that forwards the stream to the produced source.
+     */
+    public static <E> Accumulator<E, Source<E, ?>> source() {
+        // If Akka streams ever provides Sink.source(), we should use that instead.
+        // https://github.com/akka/akka/issues/18406
+        return new Accumulator<>(Sink.<E>publisher().mapMaterializedValue(publisher ->
+                        CompletableFuture.completedFuture(Source.from(publisher))
+        ));
+    }
+
+    /**
      * Create a done accumulator with the given value.
      *
      * @param a The done value for the accumulator.
      * @return The accumulator.
      */
-    public static <A> Accumulator<Object, A> done(A a) {
+    public static <E, A> Accumulator<E, A> done(A a) {
         return done(CompletableFuture.completedFuture(a));
     }
 
@@ -179,8 +203,8 @@ public final class Accumulator<E, A> {
      * @param a A future of the done value.
      * @return The accumulator.
      */
-    public static <A> Accumulator<Object, A> done(CompletionStage<A> a) {
-        return new Accumulator<Object, A>(Sink.cancelled().mapMaterializedValue((unit) -> a));
+    public static <E, A> Accumulator<E, A> done(CompletionStage<A> a) {
+        return new Accumulator(Sink.cancelled().mapMaterializedValue((unit) -> a));
     }
 
 }

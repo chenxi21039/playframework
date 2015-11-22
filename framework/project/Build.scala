@@ -61,7 +61,9 @@ object BuildSettings {
     testListeners in (Test,test) := Nil,
     javaOptions in Test ++= Seq(maxMetaspace, "-Xmx512m", "-Xms128m"),
     testOptions += Tests.Argument(TestFrameworks.JUnit, "-v"),
-    bintrayPackage := "play-sbt-plugin"
+    bintrayPackage := "play-sbt-plugin",
+    autoAPIMappings := true,
+    apiMappings += scalaInstance.value.libraryJar -> url( raw"""http://scala-lang.org/files/archive/api/${scalaInstance.value.actualVersion}/index.html""")
   )
 
   /**
@@ -159,23 +161,6 @@ object BuildSettings {
       .settings(playScriptedSettings: _*)
   }
 
-  /**
-   * Adds a set of Scala 2.11 modules to the build.
-   *
-   * Only adds if Scala version is >= 2.11.
-   */
-  def addScalaModules(modules: ModuleID*): Setting[_] = {
-    libraryDependencies := {
-      CrossVersion.partialVersion(scalaVersion.value) match {
-        case Some((2, scalaMajor)) if scalaMajor >= 11 =>
-          libraryDependencies.value ++ modules
-        case _ =>
-          libraryDependencies.value
-      }
-    }
-  }
-
-  val scalaParserCombinators = "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.1"
 }
 
 object PlayBuild extends Build {
@@ -232,8 +217,7 @@ object PlayBuild extends Build {
   lazy val PlayProject = PlayCrossBuiltProject("Play", "play")
     .enablePlugins(SbtTwirl)
     .settings(
-      addScalaModules(scalaParserCombinators),
-      libraryDependencies ++= runtime(scalaVersion.value) ++ scalacheckDependencies ++ Seq(scalaJava8Compat),
+      libraryDependencies ++= runtime(scalaVersion.value) ++ scalacheckDependencies,
 
       sourceGenerators in Compile <+= (version, scalaVersion, sbtVersion, sourceManaged in Compile) map PlayVersion,
 
@@ -290,6 +274,7 @@ object PlayBuild extends Build {
     .dependsOn(PlaySpecs2Project % "test")
 
   lazy val PlayJdbcEvolutionsProject = PlayCrossBuiltProject("Play-JDBC-Evolutions", "play-jdbc-evolutions")
+    .settings(libraryDependencies += derbyDatabase % Test)
     .dependsOn(PlayJdbcApiProject)
     .dependsOn(PlaySpecs2Project % "test")
     .dependsOn(PlayJdbcProject % "test")
@@ -342,29 +327,17 @@ object PlayBuild extends Build {
       }
     ).dependsOn(RoutesCompilerProject, SbtRunSupportProject)
 
-  val ProtocolCompile = Tags.Tag("protocol-compile")
-
-  val tagProtocolCompileSettings: Seq[Setting[_]] = {
-    val settings: Seq[Setting[_]] = Seq(
-      compileIncremental <<= compileIncremental tag ProtocolCompile,
-      doc <<= doc tag ProtocolCompile
-    )
-    inConfig(Compile)(settings) ++ inConfig(Test)(settings)
-  }
-
   lazy val ForkRunProtocolProject = PlayDevelopmentProject("Fork-Run-Protocol", "fork-run-protocol")
     .settings(
       libraryDependencies ++= forkRunProtocolDependencies(scalaBinaryVersion.value)
-    ).settings(tagProtocolCompileSettings: _*)
-    .dependsOn(RunSupportProject)
+    ).dependsOn(RunSupportProject)
 
   // extra fork-run-protocol project that is only compiled against sbt scala version
   lazy val SbtForkRunProtocolProject = PlaySbtProject("SBT-Fork-Run-Protocol", "fork-run-protocol")
     .settings(
       target := target.value / "sbt-fork-run-protocol",
       libraryDependencies ++= forkRunProtocolDependencies(scalaBinaryVersion.value)
-    ).settings(tagProtocolCompileSettings: _*)
-    .dependsOn(SbtRunSupportProject)
+    ).dependsOn(SbtRunSupportProject)
 
   lazy val ForkRunProject = PlayDevelopmentProject("Fork-Run", "fork-run")
     .settings(
@@ -386,6 +359,14 @@ object PlayBuild extends Build {
         val () = (publishLocal in RoutesCompilerProject).value
       })
     .dependsOn(SbtForkRunProtocolProject, SbtPluginProject)
+
+  lazy val PlayLogback = PlayCrossBuiltProject("Play-Logback", "play-logback")
+    .settings(
+      libraryDependencies ++= logback,
+      parallelExecution in Test := false,
+      // quieten deprecation warnings in tests
+      scalacOptions in Test := (scalacOptions in Test).value diff Seq("-deprecation")
+    ).dependsOn(PlayProject)
 
   lazy val PlayWsProject = PlayCrossBuiltProject("Play-WS", "play-ws")
     .settings(
@@ -412,9 +393,11 @@ object PlayBuild extends Build {
   lazy val PlayIntegrationTestProject = PlayCrossBuiltProject("Play-Integration-Test", "play-integration-test")
     .settings(
       parallelExecution in Test := false,
-      previousArtifact := None
+      previousArtifact := None,
+      // The integration test WebSocket client need a recent version of Netty 3.x
+      libraryDependencies += "io.netty" % "netty" % "3.10.4.Final" % Test
     )
-    .dependsOn(PlayProject % "test->test", PlayWsProject, PlayWsJavaProject, PlaySpecs2Project)
+    .dependsOn(PlayProject % "test->test", PlayLogback % "test->test", PlayWsProject, PlayWsJavaProject, PlaySpecs2Project)
     .dependsOn(PlayFiltersHelpersProject)
     .dependsOn(PlayJavaProject)
     .dependsOn(PlayAkkaHttpServerProject)
@@ -451,6 +434,7 @@ object PlayBuild extends Build {
     PlayNettyUtilsProject,
     PlayNettyServerProject,
     PlayServerProject,
+    PlayLogback,
     PlayWsProject,
     PlayWsJavaProject,
     SbtRunSupportProject,
@@ -477,9 +461,9 @@ object PlayBuild extends Build {
     .enablePlugins(CrossPerProjectPlugin)
     .settings(playCommonSettings: _*)
     .settings(
+      scalaVersion := (scalaVersion in PlayProject).value,
       playBuildRepoName in ThisBuild := "playframework",
       concurrentRestrictions in Global += Tags.limit(Tags.Test, 1),
-      concurrentRestrictions in Global += Tags.limit(ProtocolCompile, 1),
       libraryDependencies ++= (runtime(scalaVersion.value) ++ jdbcDeps),
       Docs.apiDocsInclude := false,
       Docs.apiDocsIncludeManaged := false,

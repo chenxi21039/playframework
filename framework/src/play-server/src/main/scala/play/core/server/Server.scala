@@ -66,7 +66,9 @@ trait Server extends ServerWithStop {
   def applicationProvider: ApplicationProvider
 
   def stop() {
-    Logger.shutdown()
+    applicationProvider.current.foreach { app =>
+      LoggerConfigurator(app.classloader).foreach(_.shutdown())
+    }
   }
 
   /**
@@ -143,7 +145,7 @@ object Server {
 }
 
 private[play] object JavaServerHelper {
-  def forRouter(router: Router, mode: Mode.Mode, port: Int): Server = {
+  def forRouter(router: Router, mode: Mode.Mode, httpPort: Option[Integer], sslPort: Option[Integer]): Server = {
     val r = router
     val application = new BuiltInComponentsFromContext(ApplicationLoader.Context(
       Environment.simple(mode = mode),
@@ -152,6 +154,7 @@ private[play] object JavaServerHelper {
       def router = r
     }.application
     Play.start(application)
-    implicitly[ServerProvider].createServer(ServerConfig(mode = mode, port = Some(port)), application)
+    val serverConfig = ServerConfig(mode = mode, port = httpPort.map(_.intValue), sslPort = sslPort.map(_.intValue))
+    implicitly[ServerProvider].createServer(serverConfig, application)
   }
 }

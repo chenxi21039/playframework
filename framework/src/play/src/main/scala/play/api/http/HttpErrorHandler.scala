@@ -13,8 +13,10 @@ import play.api.http.Status._
 import play.api.routing.Router
 import play.core.j.JavaHttpErrorHandlerAdapter
 import play.core.SourceMapper
+import play.mvc.Http
 import play.utils.{ Reflect, PlayIO }
 
+import scala.compat.java8.FutureConverters
 import scala.concurrent._
 import scala.util.control.NonFatal
 
@@ -49,7 +51,8 @@ object HttpErrorHandler {
    * Get the bindings for the error handler from the configuration
    */
   def bindingsFromConfiguration(environment: Environment, configuration: Configuration): Seq[Binding[_]] = {
-    Reflect.bindingsFromConfiguration[HttpErrorHandler, play.http.HttpErrorHandler, JavaHttpErrorHandlerAdapter, GlobalSettingsHttpErrorHandler](environment, PlayConfig(configuration), "play.http.errorHandler", "ErrorHandler")
+    Reflect.bindingsFromConfiguration[HttpErrorHandler, play.http.HttpErrorHandler, JavaHttpErrorHandlerAdapter, JavaHttpErrorHandlerDelegate, GlobalSettingsHttpErrorHandler](environment, PlayConfig(configuration),
+      "play.http.errorHandler", "ErrorHandler")
   }
 }
 
@@ -179,9 +182,9 @@ class DefaultHttpErrorHandler(environment: Environment, configuration: Configura
   /**
    * Invoked when a server error occurs.
    *
-   * By default, the implementation of this method delegates to [[onProdServerError()]] when in prod mode, and
-   * [[onDevServerError()]] in dev mode.  It is recommended, if you want Play's debug info on the error page in dev
-   * mode, that you override [[onProdServerError()]] instead of this method.
+   * By default, the implementation of this method delegates to [[onProdServerError]] when in prod mode, and
+   * [[onDevServerError]] in dev mode.  It is recommended, if you want Play's debug info on the error page in dev
+   * mode, that you override [[onProdServerError]] instead of this method.
    *
    * @param request The request that triggered the server error.
    * @param exception The server error.
@@ -233,7 +236,7 @@ class DefaultHttpErrorHandler(environment: Environment, configuration: Configura
   /**
    * Invoked in prod mode when a server error occurs.
    *
-   * Override this rather than [[onServerError()]] if you don't want to change Play's debug output when logging errors
+   * Override this rather than [[onServerError]] if you don't want to change Play's debug output when logging errors
    * in dev mode.
    *
    * @param request The request that triggered the error.
@@ -291,4 +294,18 @@ object LazyHttpErrorHandler extends HttpErrorHandler {
 
   def onServerError(request: RequestHeader, exception: Throwable) =
     errorHandler.onServerError(request, exception)
+}
+
+/**
+ * A Java error handler that's provided when a Scala one is configured, so that Java code can still have the error
+ * handler injected.
+ */
+private[play] class JavaHttpErrorHandlerDelegate @Inject() (delegate: HttpErrorHandler) extends play.http.HttpErrorHandler {
+  import play.api.libs.iteratee.Execution.Implicits.trampoline
+
+  def onClientError(request: Http.RequestHeader, statusCode: Int, message: String) =
+    FutureConverters.toJava(delegate.onClientError(request._underlyingHeader(), statusCode, message).map(_.asJava))
+
+  def onServerError(request: Http.RequestHeader, exception: Throwable) =
+    FutureConverters.toJava(delegate.onServerError(request._underlyingHeader(), exception).map(_.asJava))
 }

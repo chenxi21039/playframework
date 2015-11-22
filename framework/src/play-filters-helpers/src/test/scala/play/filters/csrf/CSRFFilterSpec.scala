@@ -3,10 +3,10 @@
  */
 package play.filters.csrf
 
+import java.util.concurrent.CompletableFuture
 import javax.inject.Inject
 
 import play.api.http.HttpFilters
-import play.libs.F.Promise
 import play.mvc.Http
 
 import scala.concurrent.Future
@@ -87,12 +87,17 @@ object CSRFFilterSpec extends CSRFCommonSpecs {
         "play.http.filters" -> classOf[CsrfFilters].getName
       ),
       withRoutes = {
-        case _ => Action(
-          _.body.asFormUrlEncoded
-            .flatMap(_.get("foo"))
-            .flatMap(_.headOption)
-            .map(Results.Ok(_))
-            .getOrElse(Results.NotFound))
+        case _ => Action { req =>
+          (for {
+            body <- req.body.asFormUrlEncoded
+            foos <- body.get("foo")
+            foo <- foos.headOption
+            buffereds <- body.get("buffered")
+            buffered <- buffereds.headOption
+          } yield {
+            Results.Ok(foo + " " + buffered)
+          }).getOrElse(Results.NotFound)
+        }
       }
     )
 
@@ -104,6 +109,7 @@ object CSRFFilterSpec extends CSRFCommonSpecs {
           Seq(
             // Ensure token is first so that it makes it into the buffered part
             TokenName -> token,
+            "buffered" -> "buffer",
             // This value must go over the edge of csrf.body.bufferSize
             "longvalue" -> Random.alphanumeric.take(1024).mkString(""),
             "foo" -> "bar"
@@ -111,7 +117,7 @@ object CSRFFilterSpec extends CSRFCommonSpecs {
         )
       )
       response.status must_== OK
-      response.body must_== "bar"
+      response.body must_== "bar buffer"
     }
 
     "work with a Java error handler" in {
@@ -204,7 +210,7 @@ object CSRFFilterSpec extends CSRFCommonSpecs {
 }
 
 class JavaErrorHandler extends CSRFErrorHandler {
-  def handle(req: Http.RequestHeader, msg: String) = Promise.pure(play.mvc.Results.unauthorized())
+  def handle(req: Http.RequestHeader, msg: String) = CompletableFuture.completedFuture(play.mvc.Results.unauthorized())
 }
 
 class CsrfFilters @Inject() (filter: CSRFFilter) extends HttpFilters {
