@@ -36,6 +36,7 @@ import scala.concurrent.duration._
  * @param maxRequestRetry The maximum number of times to retry a request if it fails.
  * @param disableUrlEncoding Whether the raw URL should be used.
  */
+@deprecated("Use AhcWSClientConfig", "2.5")
 case class NingWSClientConfig(wsClientConfig: WSClientConfig = WSClientConfig(),
   allowPoolingConnection: Boolean = true,
   allowSslConnectionPool: Boolean = true,
@@ -52,6 +53,7 @@ case class NingWSClientConfig(wsClientConfig: WSClientConfig = WSClientConfig(),
 /**
  * Factory for creating NingWSClientConfig, for use from Java.
  */
+@deprecated("Use AhcWSConfigBuilder", "2.5")
 object NingWSClientConfigFactory {
 
   def forClientConfig(config: WSClientConfig) = {
@@ -60,59 +62,12 @@ object NingWSClientConfigFactory {
 }
 
 /**
- * This class creates a DefaultWSClientConfig object from the play.api.Configuration.
- */
-@Singleton
-class NingWSClientConfigParser @Inject() (wsClientConfig: WSClientConfig,
-    configuration: Configuration,
-    environment: Environment) extends Provider[NingWSClientConfig] {
-
-  def get = parse()
-
-  def parse(): NingWSClientConfig = {
-    val config = PlayConfig(configuration).get[PlayConfig]("play.ws.ning")
-    val allowPoolingConnection = config.get[Boolean]("allowPoolingConnection")
-    val allowSslConnectionPool = config.get[Boolean]("allowSslConnectionPool")
-    val ioThreadMultiplier = config.get[Int]("ioThreadMultiplier")
-    val maximumConnectionsPerHost = config.get[Int]("maxConnectionsPerHost")
-    val maximumConnectionsTotal = config.get[Int]("maxConnectionsTotal")
-    val maxConnectionLifetime = config.get[Duration]("maxConnectionLifetime")
-    val idleConnectionInPoolTimeout = config.get[Duration]("idleConnectionInPoolTimeout")
-    val webSocketIdleTimeout = config.get[Duration]("webSocketIdleTimeout")
-    val maximumNumberOfRedirects = config.get[Int]("maxNumberOfRedirects")
-    val maxRequestRetry = config.get[Int]("maxRequestRetry")
-    val disableUrlEncoding = config.get[Boolean]("disableUrlEncoding")
-
-    NingWSClientConfig(
-      wsClientConfig = wsClientConfig,
-      allowPoolingConnection = allowPoolingConnection,
-      allowSslConnectionPool = allowSslConnectionPool,
-      ioThreadMultiplier = ioThreadMultiplier,
-      maxConnectionsPerHost = maximumConnectionsPerHost,
-      maxConnectionsTotal = maximumConnectionsTotal,
-      maxConnectionLifetime = maxConnectionLifetime,
-      idleConnectionInPoolTimeout = idleConnectionInPoolTimeout,
-      webSocketIdleTimeout = webSocketIdleTimeout,
-      maxNumberOfRedirects = maximumNumberOfRedirects,
-      maxRequestRetry = maxRequestRetry,
-      disableUrlEncoding = disableUrlEncoding
-    )
-  }
-}
-
-/**
  * Builds a valid AsyncHttpClientConfig object from config.
  *
  * @param ningConfig the ning client configuration.
  */
+@deprecated("Use AhcConfigBuilder", "2.5")
 class NingAsyncHttpClientConfigBuilder(ningConfig: NingWSClientConfig = NingWSClientConfig()) {
-
-  /**
-   * Constructor for backwards compatibility with <= 2.3.X
-   */
-  @deprecated("Use NingAsyncHttpClientConfigBuilder(NingWSClientConfig)", "2.4")
-  def this(config: WSClientConfig) =
-    this(NingWSClientConfig(wsClientConfig = config))
 
   protected val addCustomSettings: AsyncHttpClientConfig.Builder => AsyncHttpClientConfig.Builder = identity
 
@@ -201,13 +156,6 @@ class NingAsyncHttpClientConfigBuilder(ningConfig: NingWSClientConfig = NingWSCl
     builder.setShutdownQuiet(0)
     builder.setShutdownTimeout(0)
   }
-
-  /**
-   * Configures the global settings.
-   * For backwards compatibility with <= 2.3.X
-   */
-  @deprecated("Use configureWS(NingWSClientConfig)", "2.4")
-  def configureWS(config: WSClientConfig): Unit = configureWS(NingWSClientConfig(wsClientConfig = config))
 
   def configureProtocols(existingProtocols: Array[String], sslConfig: SSLConfig): Array[String] = {
     val definedProtocols = sslConfig.enabledProtocols match {

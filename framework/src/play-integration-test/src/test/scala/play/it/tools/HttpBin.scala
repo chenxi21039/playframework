@@ -5,7 +5,8 @@
 package play.it.tools
 
 import akka.stream.Materializer
-import play.api.libs.ws.ning.NingWSComponents
+import akka.stream.scaladsl.Source
+import play.api.libs.ws.ahc.AhcWSComponents
 import play.api.routing.SimpleRouter
 import play.api.routing.Router.Routes
 import play.api.routing.sird._
@@ -201,7 +202,6 @@ object HttpBinApplication {
 
   val stream: Routes = {
     case GET(p"/stream/$param<[0-9]+>") =>
-      import play.api.libs.iteratee.Enumerator
       Action { request =>
         val body = requestHeaderWriter.writes(request).as[JsObject]
 
@@ -209,7 +209,7 @@ object HttpBinApplication {
           body ++ Json.obj("id" -> index)
         }
 
-        Ok.chunked(Enumerator(content: _*)).as("application/json")
+        Ok.chunked(Source(content)).as("application/json")
       }
   }
 
@@ -322,7 +322,7 @@ object HttpBinApplication {
   }
 
   def app = {
-    new BuiltInComponentsFromContext(ApplicationLoader.createContext(Environment.simple())) with NingWSComponents {
+    new BuiltInComponentsFromContext(ApplicationLoader.createContext(Environment.simple())) with AhcWSComponents {
       def router = SimpleRouter(
         PartialFunction.empty
           .orElse(getIp)

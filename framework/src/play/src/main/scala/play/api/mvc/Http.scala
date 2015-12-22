@@ -375,8 +375,17 @@ package play.api.mvc {
 
   /**
    * The HTTP headers set.
+   *
+   * @param _headers The sequence of values. This value is protected and mutable
+   * since subclasses might initially set it to a `null` value and then initialize
+   * it lazily.
    */
-  class Headers(val headers: Seq[(String, String)]) {
+  class Headers(protected var _headers: Seq[(String, String)]) {
+
+    /**
+     * The headers as a sequence of name-value pairs.
+     */
+    def headers: Seq[(String, String)] = _headers
 
     /**
      * Append the given headers
@@ -825,9 +834,6 @@ package play.api.mvc {
       case None => fromMap(Map.empty)
     }
 
-    @deprecated("Use fromSetCookieHeader or fromCookieHeader instead", "2.4.0")
-    def apply(header: Option[String]) = fromSetCookieHeader(header)
-
     private def fromMap(cookies: Map[String, Cookie]): Cookies = new Cookies {
       def get(name: String) = cookies.get(name)
       override def toString = cookies.toString
@@ -869,9 +875,6 @@ package play.api.mvc {
         new DefaultCookie(cookie.name, cookie.value)
       }.asJava)
     }
-
-    @deprecated("Use encodeSetCookieHeader or encodeCookieHeader instead", "2.4.0")
-    def encode(cookies: Seq[Cookie]): String = encodeSetCookieHeader(cookies)
 
     /**
      * Decodes a Set-Cookie header value as a proper cookie set.
@@ -920,9 +923,6 @@ package play.api.mvc {
       }
     }
 
-    @deprecated("Use decodeSetCookieHeader or decodeCookieHeader instead", "2.4.0")
-    def decode(cookieHeader: String): Seq[Cookie] = decodeSetCookieHeader(cookieHeader)
-
     /**
      * Merges an existing Set-Cookie header with new cookie values
      *
@@ -957,8 +957,5 @@ package play.api.mvc {
       val uniqCookies = scala.collection.immutable.ListMap(tupledCookies: _*)
       encodeCookieHeader(uniqCookies.values.toSeq)
     }
-
-    @deprecated("Use mergeSetCookieHeader or mergeCookieHeader instead", "2.4.0")
-    def merge(cookieHeader: String, cookies: Seq[Cookie]): String = mergeSetCookieHeader(cookieHeader, cookies)
   }
 }

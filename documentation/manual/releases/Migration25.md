@@ -36,7 +36,7 @@ onClose(() -> {
         database.stop(); // <-- suppose this can throw an IOException
     }
     catch(IOException e) {
-        throw new RuntimeException(e);   
+        throw new RuntimeException(e);
     }
 })
 ```
@@ -75,6 +75,14 @@ Here follows a short table that should ease the migration:
 
 If you are using `controllers.ExternalAssets` in your routes file you must either set `routesGenerator := InjectedRoutesGenerator` in your `build.sbt` or you must use the `@` symbol in front of the route like `GET /some/path @controllers.ExternalAssets.at`
 
+## Removed Plugins API
+
+Play's Plugin API was deprecated in 2.4, and has been removed.  
+
+To create reusable components that are dependency injection independent, please use Play's module system [`play.api.inject.Module`](api/scala/play/api/inject/Module.html).  Otherwise, a singleton bound to a dependency injected module (either [[Scala|ScalaDependencyInjection]] or [[Java|JavaDependencyInjection]]) is usually enough to replace the Plugin API completely.
+
+As part of this effort, the [[modules directory|ModuleDirectory]] has been refactored to only include up to date modules that do not use the Plugin API.
+
 ## Refactored Logback as an optional dependency
 
 The runtime dependency on Logback has been removed, and Play can now use any SLF4J compatible logging framework.  Logback is included by default, but because it exists as a separate module outside of Play (and is not part of the Logger class), the `play.api.Logger$ColoredLevel` converter in logback.xml has changed to `play.api.libs.logback.ColoredLevel`:
@@ -84,3 +92,7 @@ The runtime dependency on Logback has been removed, and Play can now use any SLF
 ```
 
 Details on how to set up Play with different logging frameworks are in [[Configuring logging|SettingsLogger]] section.
+
+## Renamed Ning components into Ahc
+
+In order to reflect the proper AsyncHttpClient library name, package `play.api.libs.ws.ning` was renamed into `play.api.libs.ws.ahc` and `Ning*` classes were renamed into `Ahc*`.

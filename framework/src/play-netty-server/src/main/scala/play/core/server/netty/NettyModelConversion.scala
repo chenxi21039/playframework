@@ -1,3 +1,6 @@
+/*
+ * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+ */
 package play.core.server.netty
 
 import java.net.{ URI, InetSocketAddress }
@@ -16,6 +19,7 @@ import play.api.libs.streams.MaterializeOnDemandPublisher
 import play.api.mvc._
 import play.core.server.common.{ ConnectionInfo, ServerResultUtils, ForwardedHeaderHandler }
 
+import scala.collection.immutable
 import scala.collection.JavaConverters._
 import scala.util.{ Failure, Try }
 import scala.util.control.{ NonFatal, Exception }
@@ -44,9 +48,14 @@ private[server] class NettyModelConversion(forwardedHeaderHandler: ForwardedHead
   /** Try to create the request. May fail if the path is invalid */
   private def tryToCreateRequest(request: HttpRequest, requestId: Long, remoteAddress: InetSocketAddress, secureProtocol: Boolean): Try[RequestHeader] = {
 
-    Exception.allCatch[RequestHeader].withTry {
+    Try {
       val uri = new QueryStringDecoder(request.getUri)
-      val parameters = Map.empty[String, Seq[String]] ++ uri.parameters().asScala.mapValues(_.asScala)
+      val parameters: Map[String, Seq[String]] = {
+        val decodedParameters = uri.parameters()
+        if (decodedParameters.isEmpty) Map.empty else {
+          decodedParameters.asScala.mapValues(_.asScala).toMap
+        }
+      }
       // wrapping into URI to handle absoluteURI
       val path = new URI(uri.path()).getRawPath
       createRequestHeader(request, requestId, path, parameters, remoteAddress, secureProtocol)
@@ -66,7 +75,7 @@ private[server] class NettyModelConversion(forwardedHeaderHandler: ForwardedHead
       override def method = request.getMethod.name()
       override def version = request.getProtocolVersion.text()
       override def queryString = parameters
-      override lazy val headers = getHeaders(request)
+      override val headers = new NettyHeadersWrapper(request.headers)
       private lazy val remoteConnection: ConnectionInfo = {
         forwardedHeaderHandler.remoteConnection(_remoteAddress.getAddress, secureProtocol, headers)
       }
@@ -106,16 +115,10 @@ private[server] class NettyModelConversion(forwardedHeaderHandler: ForwardedHead
           Map.empty
         }
       }
-      override lazy val headers = getHeaders(request)
+      override val headers = new NettyHeadersWrapper(request.headers)
       override def remoteAddress = _remoteAddress.getAddress.toString
       override def secure = secureProtocol
     }
-  }
-
-  /** Convert the Netty headers to a Play headers object. */
-  private def getHeaders(request: HttpRequest): Headers = {
-    val pairs = request.headers().entries().asScala.map(h => h.getKey -> h.getValue)
-    new Headers(pairs)
   }
 
   /** Create the source for the request body */

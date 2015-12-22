@@ -1,4 +1,4 @@
-/*
+/* 
  * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
  */
 
@@ -184,12 +184,20 @@ object PlayBuild extends Build {
       libraryDependencies ++= runSupportDependencies(sbtVersion.value, scalaVersion.value)
     ).dependsOn(BuildLinkProject)
 
-  lazy val RoutesCompilerProject = PlaySbtProject("Routes-Compiler", "routes-compiler")
+  lazy val RoutesCompilerProject = PlayDevelopmentProject("Routes-Compiler", "routes-compiler")
     .enablePlugins(SbtTwirl)
     .settings(
-      libraryDependencies ++= routesCompilerDependencies,
+      libraryDependencies ++= routesCompilerDependencies(scalaVersion.value),
       TwirlKeys.templateFormats := Map("twirl" -> "play.routes.compiler.ScalaFormat")
     )
+
+  lazy val SbtRoutesCompilerProject = PlaySbtProject("SBT-Routes-Compiler", "routes-compiler")
+    .enablePlugins(SbtTwirl)
+    .settings(
+      target := target.value / "sbt-routes-compiler",
+      libraryDependencies ++= routesCompilerDependencies(scalaVersion.value),
+      TwirlKeys.templateFormats := Map("twirl" -> "play.routes.compiler.ScalaFormat")
+  )
 
   lazy val IterateesProject = PlayCrossBuiltProject("Play-Iteratees", "iteratees")
     .settings(libraryDependencies ++= iterateesDependencies)
@@ -325,7 +333,7 @@ object PlayBuild extends Build {
         val () = publishLocal.value
         val () = (publishLocal in RoutesCompilerProject).value
       }
-    ).dependsOn(RoutesCompilerProject, SbtRunSupportProject)
+    ).dependsOn(SbtRoutesCompilerProject, SbtRunSupportProject)
 
   lazy val ForkRunProtocolProject = PlayDevelopmentProject("Fork-Run-Protocol", "fork-run-protocol")
     .settings(
@@ -356,7 +364,7 @@ object PlayBuild extends Build {
       scriptedDependencies := {
         val () = publishLocal.value
         val () = (publishLocal in SbtPluginProject).value
-        val () = (publishLocal in RoutesCompilerProject).value
+        val () = (publishLocal in SbtRoutesCompilerProject).value
       })
     .dependsOn(SbtForkRunProtocolProject, SbtPluginProject)
 
@@ -393,9 +401,7 @@ object PlayBuild extends Build {
   lazy val PlayIntegrationTestProject = PlayCrossBuiltProject("Play-Integration-Test", "play-integration-test")
     .settings(
       parallelExecution in Test := false,
-      previousArtifact := None,
-      // The integration test WebSocket client need a recent version of Netty 3.x
-      libraryDependencies += "io.netty" % "netty" % "3.10.4.Final" % Test
+      previousArtifact := None
     )
     .dependsOn(PlayProject % "test->test", PlayLogback % "test->test", PlayWsProject, PlayWsJavaProject, PlaySpecs2Project)
     .dependsOn(PlayFiltersHelpersProject)
@@ -423,6 +429,7 @@ object PlayBuild extends Build {
     DataCommonsProject,
     JsonProject,
     RoutesCompilerProject,
+    SbtRoutesCompilerProject,
     PlayAkkaHttpServerProject,
     PlayCacheProject,
     PlayJdbcApiProject,
