@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.it.libs
 
@@ -25,7 +25,8 @@ import scala.concurrent.Future
 
 object NettyWSSpec extends WSSpec with NettyIntegrationSpecification
 
-object AkkaHttpWSSpec extends WSSpec with AkkaHttpIntegrationSpecification
+// Disabled while we wait for https://github.com/akka/akka/issues/19623 to be fixed
+// object AkkaHttpWSSpec extends WSSpec with AkkaHttpIntegrationSpecification
 
 trait WSSpec extends PlaySpecification with ServerIntegrationSpecification {
 
@@ -142,7 +143,7 @@ trait WSSpec extends PlaySpecification with ServerIntegrationSpecification {
       }
 
     "streaming a request body" in withEchoServer { ws =>
-      val source = akka.stream.javadsl.Source.adapt(Source(List("a", "b", "c").map(ByteString.apply)))
+      val source = Source(List("a", "b", "c").map(ByteString.apply)).asJava
       val res = ws.url("/post").setMethod("POST").setBody(source).execute()
       val body = await(res.wrapped).getBody
 

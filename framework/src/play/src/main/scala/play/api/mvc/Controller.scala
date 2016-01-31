@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api.mvc
 
@@ -72,7 +72,7 @@ trait Controller extends Results with BodyParsers with HttpProtocol with Status 
    * }}}
    */
   implicit def request2lang(implicit request: RequestHeader): Lang = {
-    play.api.Play.maybeApplication.map(app => play.api.i18n.Messages.messagesApiCache(app).preferred(request).lang)
+    play.api.Play.privateMaybeApplication.map(app => play.api.i18n.Messages.messagesApiCache(app).preferred(request).lang)
       .getOrElse(request.acceptLanguages.headOption.getOrElse(play.api.i18n.Lang.defaultLang))
   }
 

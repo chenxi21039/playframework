@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.core.j
 
@@ -76,7 +76,7 @@ object JavaWebSocket extends JavaHelpers {
               jws.onReady(socketIn, socketOut)
             }
 
-            transformer.transform(Flow.wrap(sink, source)(Keep.none))
+            transformer.transform(Flow.fromSinkAndSource(sink, source))
           }
         )
       }

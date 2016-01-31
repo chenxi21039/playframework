@@ -1,11 +1,11 @@
 /*
- * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api.mvc
 
 import akka.util.ByteString
 import play.api.data.Form
-import play.api.libs.streams.{ Streams, Accumulator }
+import play.api.libs.streams.Accumulator
 import play.core.parsers.Multipart
 import scala.language.reflectiveCalls
 import java.io._
@@ -21,7 +21,7 @@ import play.api.http.{ LazyHttpErrorHandler, ParserConfiguration, HttpConfigurat
 import play.utils.PlayIO
 import play.api.http.Status._
 import akka.stream.Materializer
-import akka.stream.scaladsl.{ Flow, Sink }
+import akka.stream.scaladsl.{ StreamConverters, Flow, Sink }
 import akka.stream.stage.{ Context, PushStage, SyncDirective }
 
 /**
@@ -278,7 +278,7 @@ trait BodyParsers {
 
     private[play] val ApplicationXmlMatcher = """application/.*\+xml.*""".r
 
-    private def config = Play.maybeApplication.map(app => hcCache(app).parser)
+    private def config = Play.privateMaybeApplication.map(app => hcCache(app).parser)
       .getOrElse(ParserConfiguration())
 
     /**
@@ -528,7 +528,7 @@ trait BodyParsers {
      */
     def file(to: File): BodyParser[File] = BodyParser("file, to=" + to) { request =>
       import play.api.libs.iteratee.Execution.Implicits.trampoline
-      Accumulator(Streams.outputStreamToSink(() => new FileOutputStream(to))).map(_ => Right(to))
+      Accumulator(StreamConverters.fromOutputStream(() => new FileOutputStream(to))).map(_ => Right(to))
     }
 
     /**
@@ -651,7 +651,8 @@ trait BodyParsers {
      */
     def multipartFormData[A](filePartHandler: Multipart.FilePartHandler[A], maxLength: Long = DefaultMaxDiskLength): BodyParser[MultipartFormData[A]] = {
       BodyParser("multipartFormData") { request =>
-        implicit val mat = Play.current.materializer
+        val app = Play.privateMaybeApplication.get // throw exception
+        implicit val mat = app.materializer
         val bodyAccumulator = Multipart.multipartParser(DefaultMaxTextLength, filePartHandler).apply(request)
         enforceMaxLength(request, maxLength, bodyAccumulator)
       }

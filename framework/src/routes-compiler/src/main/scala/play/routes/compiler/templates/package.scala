@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.routes.compiler
 
@@ -125,7 +125,7 @@ package object templates {
   /**
    * The code to statically get the Play injector
    */
-  val Injector = "play.api.Play.maybeApplication.map(_.injector).getOrElse(play.api.inject.NewInstanceInjector)"
+  val Injector = "play.api.Play.routesCompilerMaybeApplication.map(_.injector).getOrElse(play.api.inject.NewInstanceInjector)"
 
   val scalaReservedWords = List(
     "abstract", "case", "catch", "class",

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.core.j
 
@@ -219,6 +219,8 @@ class RequestHeaderImpl(header: RequestHeader) extends JRequestHeader {
   def contentType() = OptionConverters.toJava(header.contentType)
 
   def charset() = OptionConverters.toJava(header.charset)
+
+  def tags = header.tags.asJava
 
   override def toString = header.toString
 

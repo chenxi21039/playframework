@@ -1,11 +1,11 @@
 /*
- * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.mvc;
 
-import play.mvc.Http.*;
-
 import java.util.concurrent.CompletionStage;
+
+import play.mvc.Http.Context;
 
 /**
  * An action acts as decorator for the action method call.

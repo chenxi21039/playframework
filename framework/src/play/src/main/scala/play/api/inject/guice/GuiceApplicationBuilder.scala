@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api.inject.guice
 
@@ -47,7 +47,9 @@ final class GuiceApplicationBuilder(
   /**
    * Set the global settings object.
    * Overrides the default or any previously configured values.
+   * @deprecated use dependency injection, since 2.5.0
    */
+  @deprecated("Use dependency injection", "2.5.0")
   def global(globalSettings: GlobalSettings): GuiceApplicationBuilder =
     copy(global = Option(globalSettings))
 

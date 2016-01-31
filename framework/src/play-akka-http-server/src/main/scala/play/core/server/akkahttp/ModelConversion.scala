@@ -22,14 +22,14 @@ private[akkahttp] class ModelConversion(forwardedHeaderHandler: ForwardedHeaderH
   private val logger = Logger(getClass)
 
   /**
-   * Convert an Akka `HttpRequest` to a `RequestHeader` and an `Eumerator`
+   * Convert an Akka `HttpRequest` to a `RequestHeader` and an `Enumerator`
    * for its body.
    */
   def convertRequest(
     requestId: Long,
     remoteAddress: InetSocketAddress,
     secureProtocol: Boolean,
-    request: HttpRequest)(implicit fm: Materializer): (RequestHeader, Source[ByteString, Any]) = {
+    request: HttpRequest)(implicit fm: Materializer): (RequestHeader, Option[Source[ByteString, Any]]) = {
     (
       convertRequestHeader(requestId, remoteAddress, secureProtocol, request),
       convertRequestBody(request)
@@ -60,7 +60,7 @@ private[akkahttp] class ModelConversion(forwardedHeaderHandler: ForwardedHeaderH
       override def path = request.uri.path.toString
       override def method = request.method.name
       override def version = request.protocol.value
-      override def queryString = request.uri.query.toMultiMap
+      override def queryString = request.uri.query().toMultiMap
       override val headers = convertRequestHeaders(request)
       private lazy val remoteConnection: ConnectionInfo = {
         forwardedHeaderHandler.remoteConnection(remoteAddressArg.getAddress, secureProtocol, headers)
@@ -91,20 +91,20 @@ private[akkahttp] class ModelConversion(forwardedHeaderHandler: ForwardedHeaderH
    * Convert an Akka `HttpRequest` to an `Enumerator` of the request body.
    */
   private def convertRequestBody(
-    request: HttpRequest)(implicit fm: Materializer): Source[ByteString, Any] = {
+    request: HttpRequest)(implicit fm: Materializer): Option[Source[ByteString, Any]] = {
     request.entity match {
       case HttpEntity.Strict(_, data) if data.isEmpty =>
-        Source.empty
+        None
       case HttpEntity.Strict(_, data) =>
-        Source.single(data)
+        Some(Source.single(data))
       case HttpEntity.Default(_, 0, _) =>
-        Source.empty
+        None
       case HttpEntity.Default(contentType, contentLength, pubr) =>
         // FIXME: should do something with the content-length?
-        pubr
+        Some(pubr)
       case HttpEntity.Chunked(contentType, chunks) =>
         // FIXME: do something with trailing headers?
-        chunks.takeWhile(!_.isLastChunk).map(_.data())
+        Some(chunks.takeWhile(!_.isLastChunk).map(_.data()))
     }
   }
 
@@ -135,14 +135,7 @@ private[akkahttp] class ModelConversion(forwardedHeaderHandler: ForwardedHeaderH
     result: Result,
     protocol: HttpProtocol): ResponseEntity = {
 
-    import Execution.Implicits.trampoline
-
-    def dataSource(enum: Enumerator[Array[Byte]]): Source[ByteString, Unit] = {
-      val dataEnum: Enumerator[ByteString] = enum.map(ByteString(_)) >>> Enumerator.eof
-      AkkaStreamsConversion.enumeratorToSource(dataEnum)
-    }
-
-    val contentType = result.body.contentType.fold(ContentTypes.NoContentType) { ct =>
+    val contentType = result.body.contentType.fold(ContentTypes.NoContentType: ContentType) { ct =>
       HttpHeader.parse(CONTENT_TYPE, ct) match {
         case HttpHeader.ParsingResult.Ok(`Content-Type`(akkaCt), _) => akkaCt
         case _ => ContentTypes.NoContentType

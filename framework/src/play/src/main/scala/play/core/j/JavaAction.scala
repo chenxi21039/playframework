@@ -1,12 +1,12 @@
 /*
- * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.core.j
 
 import java.util.concurrent.CompletionStage
 import javax.inject.Inject
 
-import play.api.http.HttpConfiguration
+import play.api.http.{ActionCompositionConfiguration, HttpConfiguration}
 import play.api.inject.Injector
 
 import scala.compat.java8.FutureConverters
@@ -20,10 +20,12 @@ import scala.concurrent.{ ExecutionContext, Future }
 
 /**
  * Retains and evaluates what is otherwise expensive reflection work on call by call basis.
+ *
  * @param controller The controller to be evaluated
  * @param method     The method to be evaluated
  */
 class JavaActionAnnotations(val controller: Class[_], val method: java.lang.reflect.Method) {
+  private def config: ActionCompositionConfiguration = HttpConfiguration.current.actionComposition
 
   val parser: Class[_ <: JBodyParser[_]] =
     Seq(method.getAnnotation(classOf[play.mvc.BodyParser.Of]), controller.getAnnotation(classOf[play.mvc.BodyParser.Of]))
@@ -35,7 +37,7 @@ class JavaActionAnnotations(val controller: Class[_], val method: java.lang.refl
   }.flatten
 
   val actionMixins = {
-    val allDeclaredAnnotations: Seq[java.lang.annotation.Annotation] = if (HttpConfiguration.current.actionComposition.controllerAnnotationsFirst) {
+    val allDeclaredAnnotations: Seq[java.lang.annotation.Annotation] = if (config.controllerAnnotationsFirst) {
       controllerAnnotations ++ method.getDeclaredAnnotations
     } else {
       method.getDeclaredAnnotations ++ controllerAnnotations
@@ -46,12 +48,14 @@ class JavaActionAnnotations(val controller: Class[_], val method: java.lang.refl
         a.annotationType.getAnnotation(classOf[play.mvc.With]).value.map(c => (a, c)).toSeq
     }.flatten.reverse
   }
+
 }
 
 /*
  * An action that's handling Java requests
  */
 abstract class JavaAction(components: JavaHandlerComponents) extends Action[play.mvc.Http.RequestBody] with JavaHelpers {
+  private def config: ActionCompositionConfiguration = HttpConfiguration.current.actionComposition
 
   def invocation: CompletionStage[JResult]
   val annotations: JavaActionAnnotations
@@ -74,17 +78,28 @@ abstract class JavaAction(components: JavaHandlerComponents) extends Action[play
     }
 
     val baseAction = components.requestHandler.createAction(javaContext.request, annotations.method)
-    baseAction.delegate = rootAction
 
-    val finalAction = components.requestHandler.wrapAction(
-      annotations.actionMixins.foldLeft[JAction[_ <: Any]](baseAction) {
-        case (delegate, (annotation, actionClass)) =>
-          val action = components.injector.instanceOf(actionClass).asInstanceOf[play.mvc.Action[Object]]
-          action.configuration = annotation
-          action.delegate = delegate
-          action
-      }
-    )
+    val endOfChainAction = if (config.executeRequestHandlerActionFirst) {
+      rootAction
+    } else {
+      baseAction.delegate = rootAction
+      baseAction
+    }
+
+    val finalUserDeclaredAction = annotations.actionMixins.foldLeft[JAction[_ <: Any]](endOfChainAction) {
+      case (delegate, (annotation, actionClass)) =>
+        val action = components.injector.instanceOf(actionClass).asInstanceOf[play.mvc.Action[Object]]
+        action.configuration = annotation
+        action.delegate = delegate
+        action
+    }
+
+    val finalAction = components.requestHandler.wrapAction(if (config.executeRequestHandlerActionFirst) {
+      baseAction.delegate = finalUserDeclaredAction
+      baseAction
+    } else {
+      finalUserDeclaredAction
+    })
 
     val trampolineWithContext: ExecutionContext = {
       val javaClassLoader = Thread.currentThread.getContextClassLoader

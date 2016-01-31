@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.it.http
 
@@ -18,6 +18,8 @@ object AkkaHttpRequestBodyHandlingSpec extends RequestBodyHandlingSpec with Akka
 
 trait RequestBodyHandlingSpec extends PlaySpecification with ServerIntegrationSpecification {
 
+  sequential
+
   "Play request body handling" should {
 
     def withServer[T](action: EssentialAction)(block: Port => T) = {
@@ -32,7 +34,7 @@ trait RequestBodyHandlingSpec extends PlaySpecification with ServerIntegrationSp
     }
 
     "handle large bodies" in withServer(EssentialAction { rh =>
-      Accumulator(Sink.ignore.mapMaterializedValue(_ => Future.successful(Results.Ok)))
+      Accumulator(Sink.ignore).map(_ => Results.Ok)
     }) { port =>
       val body = new String(Random.alphanumeric.take(50 * 1024).toArray)
       val responses = BasicHttpClient.makeRequests(port, trickleFeed = Some(100L))(

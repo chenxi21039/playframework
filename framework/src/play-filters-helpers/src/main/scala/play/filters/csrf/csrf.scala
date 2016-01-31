@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.filters.csrf
 
@@ -62,7 +62,7 @@ object CSRFConfig {
 
   private[play] val HeaderNoCheck = "nocheck"
 
-  def global = Play.maybeApplication.map(_.injector.instanceOf[CSRFConfig]).getOrElse(CSRFConfig())
+  def global = Play.privateMaybeApplication.map(_.injector.instanceOf[CSRFConfig]).getOrElse(CSRFConfig())
 
   def fromConfiguration(conf: Configuration): CSRFConfig = {
     val config = PlayConfig(conf).getDeprecatedWithFallback("play.filters.csrf", "csrf")
@@ -252,7 +252,7 @@ class CSRFModule extends Module {
 trait CSRFComponents {
   def configuration: Configuration
   def httpErrorHandler: HttpErrorHandler
-  implicit def flowMaterializer: Materializer
+  implicit def materializer: Materializer
 
   lazy val csrfConfig: CSRFConfig = CSRFConfig.fromConfiguration(configuration)
   lazy val csrfTokenProvider: CSRF.TokenProvider = new CSRF.TokenProviderProvider(csrfConfig).get

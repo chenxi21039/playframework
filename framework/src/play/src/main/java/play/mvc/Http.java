@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.mvc;
 
@@ -581,6 +581,11 @@ public class Http {
          * @return The request charset, which comes from the content type header, if it exists.
          */
         Optional<String> charset();
+
+        /**
+         * @return the tags for the request
+         */
+        Map<String, String> tags();
 
         /**
          * For internal Play-use only
@@ -1535,7 +1540,9 @@ public class Http {
          * @return the request content as a ByteString
          */
         public ByteString asBytes() {
-            if (body instanceof Optional) {
+            if (body == null) {
+                return ByteString.empty();
+            } else if (body instanceof Optional) {
                 if (!((Optional<?>) body).isPresent()) {
                     return ByteString.empty();
                 }
@@ -2153,6 +2160,7 @@ public class Http {
         int NOT_MODIFIED = 304;
         int USE_PROXY = 305;
         int TEMPORARY_REDIRECT = 307;
+        int PERMANENT_REDIRECT = 308;
         int BAD_REQUEST = 400;
         int UNAUTHORIZED = 401;
         int PAYMENT_REQUIRED = 402;

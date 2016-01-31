@@ -1,8 +1,9 @@
 /*
- * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api.test
 
+import akka.actor.Cancellable
 import akka.stream.{ ClosedShape, Graph, Materializer }
 import akka.stream.scaladsl.Source
 import play.mvc.Http.RequestBody
@@ -236,7 +237,10 @@ trait RouteInvokers extends EssentialActionCaller {
    * Use the HttpRequestHandler to determine the Action to call for this request and execute it.
    *
    * The body is serialised using the implicit writable, so that the action body parser can deserialise it.
+   *
+   * @deprecated Use the version that takes an application, since 2.5.0
    */
+  @deprecated("Use the version that takes an application", "2.5.0")
   def route[T](rh: RequestHeader, body: T)(implicit w: Writeable[T]): Option[Future[Result]] = route(Play.current, rh, body)
 
   /**
@@ -250,7 +254,10 @@ trait RouteInvokers extends EssentialActionCaller {
    * Use the HttpRequestHandler to determine the Action to call for this request and execute it.
    *
    * The body is serialised using the implicit writable, so that the action body parser can deserialise it.
+   *
+   * @deprecated Use the version that takes an application, since 2.5.0
    */
+  @deprecated("Use the version that takes an application", "2.5.0")
   def route[T](req: Request[T])(implicit w: Writeable[T]): Option[Future[Result]] = route(Play.current, req)
 }
 
@@ -378,4 +385,8 @@ private[play] object NoMaterializer extends Materializer {
   implicit def executionContext = throw new UnsupportedOperationException("NoMaterializer does not have an execution context")
   def materialize[Mat](runnable: Graph[ClosedShape, Mat]) =
     throw new UnsupportedOperationException("No materializer was provided, probably when attempting to extract a response body, but that body is a streamed body and so requires a materializer to extract it.")
+  override def scheduleOnce(delay: FiniteDuration, task: Runnable): Cancellable =
+    throw new UnsupportedOperationException("NoMaterializer can't schedule tasks")
+  override def schedulePeriodically(initialDelay: FiniteDuration, interval: FiniteDuration, task: Runnable): Cancellable =
+    throw new UnsupportedOperationException("NoMaterializer can't schedule tasks")
 }

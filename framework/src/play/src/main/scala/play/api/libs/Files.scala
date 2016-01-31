@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api.libs
 
@@ -7,10 +7,10 @@ import java.io._
 import java.nio.file.{ FileAlreadyExistsException, StandardCopyOption, SimpleFileVisitor, Path, FileVisitResult }
 import java.nio.file.attribute.BasicFileAttributes
 
-import javax.inject.{ Inject, Singleton };
+import javax.inject.{ Inject, Singleton }
 
-import play.api.{ Application, Play };
-import play.api.inject.ApplicationLifecycle;
+import play.api.{ Application, Play }
+import play.api.inject.ApplicationLifecycle
 import java.nio.file.{ Files => JFiles }
 
 import scala.concurrent.Future
@@ -122,7 +122,7 @@ object Files {
      * instance or the SingletonTemporaryFileCreator if no application
      * is currently running.
      */
-    private def currentCreator: TemporaryFileCreator = Play.maybeApplication.fold[TemporaryFileCreator](SingletonTemporaryFileCreator)(creatorCache)
+    private def currentCreator: TemporaryFileCreator = Play.privateMaybeApplication.fold[TemporaryFileCreator](SingletonTemporaryFileCreator)(creatorCache)
 
     /**
      * Create a new temporary file.

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api.http
 
@@ -175,6 +175,7 @@ trait Status {
   val NOT_MODIFIED = 304
   val USE_PROXY = 305
   val TEMPORARY_REDIRECT = 307
+  val PERMANENT_REDIRECT = 308
 
   val BAD_REQUEST = 400
   val UNAUTHORIZED = 401

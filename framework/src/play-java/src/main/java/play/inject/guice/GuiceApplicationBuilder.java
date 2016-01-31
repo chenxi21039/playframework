@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.inject.guice;
 
@@ -56,9 +56,11 @@ public final class GuiceApplicationBuilder extends GuiceBuilder<GuiceApplication
      * Set the global settings object.
      * Overrides the default or any previously configured values.
      *
+     * @deprecated use dependency injection, since 2.5.0
      * @param global the configuration
      * @return the configured application builder
      */
+    @Deprecated
     public GuiceApplicationBuilder global(GlobalSettings global) {
         return newBuilder(delegate.global(new JavaGlobalSettingsAdapter(global)));
     }

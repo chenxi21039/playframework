@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
  */
 package controllers
 
@@ -389,7 +389,7 @@ class AssetsBuilder(errorHandler: HttpErrorHandler) extends Controller {
 
     val response = if (length > 0) {
       Ok.sendEntity(HttpEntity.Streamed(
-        akka.stream.scaladsl.Source(Streams.enumeratorToPublisher(resourceData)).map(ByteString.apply),
+        akka.stream.scaladsl.Source.fromPublisher(Streams.enumeratorToPublisher(resourceData)).map(ByteString.apply),
         Some(length),
         Some(mimeType)
       ))

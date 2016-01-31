@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.test;
 
@@ -15,6 +15,7 @@ public class WithApplicationTest extends WithApplication {
     @Test
     public void withApplicationShouldProvideAnApplication() {
         assertNotNull(app);
+        //noinspection deprecation
         assertNotNull(Play.application());
     }
 

@@ -1,4 +1,4 @@
-<!--- Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com> -->
+<!--- Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com> -->
 # Testing your application with ScalaTest
 
 Writing tests for your application can be an involved process. Play provides helpers and application stubs, and ScalaTest provides an integration library, [ScalaTest + Play](http://scalatest.org/plus/play), to make testing your application as easy as possible.
@@ -124,7 +124,7 @@ use the pattern shown above (`apply(fakeRequest)`); instead you should use
 
 ## Unit Testing EssentialAction
 
-Testing [`Action`](api/scala/play/api/mvc/Action.html) or [`Filter`](api/scala/play/api/mvc/Filter.html) can require to test an an [`EssentialAction`](api/scala/play/api/mvc/EssentialAction.html) ([[more information about what an EssentialAction is|HttpApi]])
+Testing [`Action`](api/scala/play/api/mvc/Action.html) or [`Filter`](api/scala/play/api/mvc/Filter.html) can require to test an an [`EssentialAction`](api/scala/play/api/mvc/EssentialAction.html) ([[more information about what an EssentialAction is|ScalaEssentialAction]])
 
 For this, the test [`Helpers.call`](api/scala/play/api/test/Helpers$.html#call) can be used like that:
 

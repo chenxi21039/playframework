@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.core.j
 
@@ -62,7 +62,11 @@ object PlayMagicForJava {
       val jmessages = play.mvc.Http.Context.current().messages()
       play.api.i18n.Messages(jmessages.lang(), jmessages.messagesApi().scalaApi())
     } catch {
-      case NonFatal(_) => play.api.i18n.Messages(play.api.i18n.Lang.defaultLang, play.api.i18n.Messages.messagesApiCache(play.api.Play.current))
+      case NonFatal(_) =>
+        val app = play.api.Play.privateMaybeApplication.get
+        val api = play.api.i18n.Messages.messagesApiCache(app)
+        val lang = play.api.i18n.Lang.defaultLang
+        play.api.i18n.Messages(lang, api)
     }
 
 }

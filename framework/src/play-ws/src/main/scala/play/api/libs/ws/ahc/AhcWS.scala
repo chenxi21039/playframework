@@ -1,5 +1,5 @@
 /*
-  * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+  * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api.libs.ws.ahc
 
@@ -246,7 +246,7 @@ case class AhcWSRequest(client: AhcWSClient,
     requestTimeout.foreach(builder.setRequestTimeout)
 
     // Set the body.
-    val possiblyModifiedHeaders = this.headers
+    var possiblyModifiedHeaders = this.headers
     val builderWithBody = body match {
       case EmptyBody => builder
       case FileBody(file) =>
@@ -257,16 +257,17 @@ case class AhcWSRequest(client: AhcWSClient,
         val ct: String = contentType.getOrElse("text/plain")
 
         try {
-          if (ct.contains(HttpHeaders.Values.APPLICATION_X_WWW_FORM_URLENCODED)) {
-            // extract the content type and the charset
-            val charset =
-              Option(HttpUtils.parseCharset(ct)).getOrElse {
-                // AhcWSRequest modifies headers to include the charset, but this fails tests in Scala.
-                //val contentTypeList = Seq(ct + "; charset=utf-8")
-                //possiblyModifiedHeaders = this.headers.updated(HttpHeaders.Names.CONTENT_TYPE, contentTypeList)
-                StandardCharsets.UTF_8
-              }.name()
+          // extract the content type and the charset
+          val charsetOption = Option(HttpUtils.parseCharset(ct))
+          val charset = charsetOption.getOrElse {
+            StandardCharsets.UTF_8
+          }.name()
 
+          // Always replace the content type header to make sure exactly one exists
+          val contentTypeList = Seq(ct + (if (charsetOption.isDefined) { "" } else { "; charset=" + charset.toLowerCase }))
+          possiblyModifiedHeaders = this.headers.updated(HttpHeaders.Names.CONTENT_TYPE, contentTypeList)
+
+          if (ct.contains(HttpHeaders.Values.APPLICATION_X_WWW_FORM_URLENCODED)) {
             // Get the string body given the given charset...
             val stringBody = bytes.decodeString(charset)
             // The Ahc signature calculator uses request.getFormParams() for calculation,
@@ -287,7 +288,7 @@ case class AhcWSRequest(client: AhcWSClient,
 
         builder
       case StreamedBody(source) =>
-        builder.setBody(source.map(_.toByteBuffer).runWith(Sink.publisher))
+        builder.setBody(source.map(_.toByteBuffer).runWith(Sink.asPublisher(false)))
     }
 
     // headers

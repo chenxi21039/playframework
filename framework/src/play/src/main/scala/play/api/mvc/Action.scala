@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api.mvc
 
@@ -101,7 +101,7 @@ trait Action[A] extends EssentialAction {
     case Right(a) =>
       val request = Request(rh, a)
       logger.trace("Invoking action with request: " + request)
-      Play.maybeApplication.map { app =>
+      Play.privateMaybeApplication.map { app =>
         play.utils.Threads.withContextClassLoader(app.classloader) {
           apply(request)
         }

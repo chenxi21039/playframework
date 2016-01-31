@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api.mvc
 
@@ -232,7 +232,7 @@ object WebSocket {
         }) >>> Enumerator.flatten(enumeratorCompletion.future)
         val publisher = Streams.enumeratorToPublisher(nonCompletingEnumerator)
         val (subscriber, _) = Streams.iterateeToSubscriber(iteratee)
-        Flow.wrap(Sink(subscriber), Source(publisher))(Keep.none)
+        Flow.fromSinkAndSource(Sink.fromSubscriber(subscriber), Source.fromPublisher(publisher))
     })))
   }
 

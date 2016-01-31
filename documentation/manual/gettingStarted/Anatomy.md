@@ -1,4 +1,4 @@
-<!--- Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com> -->
+<!--- Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com> -->
 # Anatomy of a Play application
 
 ## The Play application layout
@@ -131,7 +131,8 @@ src                        → Application sources
     └ resources            → Configurations files and other non-compiled resources (on classpath)
        └ application.conf  → Main configuration file
        └ routes            → Routes definition
-    └ twirl                → Templates
+    └ twirl
+       └ views             → Templates
     └ assets               → Compiled asset sources
        └ css               → Typically LESS CSS sources
        └ js                → Typically CoffeeScript sources

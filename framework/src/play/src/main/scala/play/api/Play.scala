@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api
 
@@ -55,21 +55,35 @@ object Play {
 
   /**
    * Returns the currently running application, or `null` if not defined.
+   *
+   * @deprecated This is a static reference to application, use DI, since 2.5.0
    */
+  @deprecated("This is a static reference to application, use DI", "2.5.0")
   def unsafeApplication: Application = _currentApp
 
   /**
    * Optionally returns the current running application.
+   *
+   * @deprecated This is a static reference to application, use DI, since 2.5.0
    */
+  @deprecated("This is a static reference to application, use DI instead", "2.5.0")
   def maybeApplication: Option[Application] = Option(_currentApp)
+
+  private[play] def privateMaybeApplication: Option[Application] = Option(_currentApp)
+
+  /* Used by the routes compiler to resolve an application for the injector.  Treat as private. */
+  def routesCompilerMaybeApplication: Option[Application] = Option(_currentApp)
 
   /**
    * Implicitly import the current running application in the context.
    *
    * Note that by relying on this, your code will only work properly in
    * the context of a running application.
+   *
+   * @deprecated This is a static reference to application, use DI, since 2.5.0
    */
-  implicit def current: Application = maybeApplication.getOrElse(sys.error("There is no started application"))
+  @deprecated("This is a static reference to application, use DI instead", "2.5.0")
+  implicit def current: Application = privateMaybeApplication.getOrElse(sys.error("There is no started application"))
 
   @volatile private[play] var _currentApp: Application = _
 
@@ -118,7 +132,7 @@ object Play {
   }
 
   /**
-   * @deprecated inject the [[ play.api.Environment ]] instead
+   * @deprecated inject the [[play.api.Environment]] instead
    */
   @Deprecated
   def resourceAsStream(name: String)(implicit app: Application): Option[InputStream] = {
@@ -126,7 +140,7 @@ object Play {
   }
 
   /**
-   * @deprecated inject the [[ play.api.Environment ]] instead
+   * @deprecated inject the [[play.api.Environment]] instead
    */
   @Deprecated
   def resource(name: String)(implicit app: Application): Option[java.net.URL] = {
@@ -134,7 +148,7 @@ object Play {
   }
 
   /**
-   * @deprecated inject the [[ play.api.Environment ]] instead
+   * @deprecated inject the [[play.api.Environment]] instead
    */
   @Deprecated
   def getFile(relativePath: String)(implicit app: Application): File = {
@@ -142,7 +156,7 @@ object Play {
   }
 
   /**
-   * @deprecated inject the [[ play.api.Environment ]] instead
+   * @deprecated inject the [[play.api.Environment]] instead
    */
   @Deprecated
   def getExistingFile(relativePath: String)(implicit app: Application): Option[File] = {
@@ -150,49 +164,49 @@ object Play {
   }
 
   /**
-   * @deprecated inject the [[ play.api.Application ]] instead
+   * @deprecated inject the [[play.api.Application]] instead
    */
   @Deprecated
   def application(implicit app: Application): Application = app
 
   /**
-   * @deprecated inject the [[ play.api.Environment ]] instead
+   * @deprecated inject the [[play.api.Environment]] instead
    */
   @Deprecated
   def classloader(implicit app: Application): ClassLoader = app.classloader
 
   /**
-   * @deprecated inject the [[ play.api.Configuration ]] instead
+   * @deprecated inject the [[play.api.Configuration]] instead
    */
   @Deprecated
   def configuration(implicit app: Application): Configuration = app.configuration
 
   /**
-   * @deprecated inject the [[ play.api.routing.Router ]] instead
+   * @deprecated inject the [[play.api.routing.Router]] instead
    */
   @Deprecated
   def routes(implicit app: Application): play.api.routing.Router = app.routes
 
   /**
-   * @deprecated inject the [[ play.api.Environment ]] instead
+   * @deprecated inject the [[play.api.Environment]] instead
    */
   @Deprecated
   def mode(implicit app: Application): Mode.Mode = app.mode
 
   /**
-   * @deprecated inject the [[ play.api.Environment ]] instead
+   * @deprecated inject the [[play.api.Environment]] instead
    */
   @Deprecated
   def isDev(implicit app: Application): Boolean = (app.mode == Mode.Dev)
 
   /**
-   * @deprecated inject the [[ play.api.Environment ]] instead
+   * @deprecated inject the [[play.api.Environment]] instead
    */
   @Deprecated
   def isProd(implicit app: Application): Boolean = (app.mode == Mode.Prod)
 
   /**
-   * @deprecated inject the [[ play.api.Environment ]] instead
+   * @deprecated inject the [[play.api.Environment]] instead
    */
   @Deprecated
   def isTest(implicit app: Application): Boolean = (app.mode == Mode.Test)

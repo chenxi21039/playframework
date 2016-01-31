@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.test;
 
@@ -126,14 +126,20 @@ public class Helpers implements play.mvc.Http.Status, play.mvc.Http.HeaderNames 
 
     /**
      * Build a new fake application.
+     *
+     * @deprecated Use dependency injection (since 2.5.0)
      */
+    @Deprecated
     public static FakeApplication fakeApplication(GlobalSettings global) {
         return new FakeApplication(new java.io.File("."), Helpers.class.getClassLoader(), new HashMap<String,Object>(), global);
     }
 
     /**
-     * A fake Global
+     * A fake Global.
+     *
+     * @deprecated Use dependency injection (since 2.5.0)
      */
+    @Deprecated
     public static GlobalSettings fakeGlobal() {
         return new GlobalSettings();
     }
@@ -163,12 +169,15 @@ public class Helpers implements play.mvc.Http.Status, play.mvc.Http.HeaderNames 
      * Build a new fake application.
      */
     public static FakeApplication fakeApplication(Map<String, ? extends Object> additionalConfiguration) {
-        return new FakeApplication(new java.io.File("."), Helpers.class.getClassLoader(), additionalConfiguration, null);
+        return new FakeApplication(new java.io.File("."), Helpers.class.getClassLoader(), additionalConfiguration);
     }
 
     /**
      * Build a new fake application.
+     *
+     * @deprecated Use the version without GlobalSettings (since 2.5.0)
      */
+    @Deprecated
     public static FakeApplication fakeApplication(Map<String, ? extends Object> additionalConfiguration, GlobalSettings global) {
         return new FakeApplication(new java.io.File("."), Helpers.class.getClassLoader(), additionalConfiguration, global);
     }

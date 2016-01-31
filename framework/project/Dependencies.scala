@@ -1,10 +1,12 @@
 /*
- * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
  */
 import sbt._
 import buildinfo.BuildInfo
 
 object Dependencies {
+
+  val akkaVersion = "2.4.2-RC1"
 
   val specsVersion = "3.6.6"
   val specsBuild = Seq(
@@ -114,7 +116,7 @@ object Dependencies {
 
   def runtime(scalaVersion: String) =
     slf4j ++
-    Seq("akka-actor", "akka-slf4j").map("com.typesafe.akka" %% _ % "2.4.1") ++
+    Seq("akka-actor", "akka-slf4j").map("com.typesafe.akka" %% _ % akkaVersion) ++
     jacksons ++
     Seq(
       "org.scala-stm" %% "scala-stm" % "0.7",
@@ -143,14 +145,14 @@ object Dependencies {
   val nettyVersion = "4.0.33.Final"
 
   val netty = Seq(
-    "com.typesafe.netty" % "netty-reactive-streams-http" % "1.0.1",
+    "com.typesafe.netty" % "netty-reactive-streams-http" % "1.0.2",
     "io.netty" % "netty-transport-native-epoll" % nettyVersion classifier "linux-x86_64"
   ) ++ specsBuild.map(_ % Test)++ logback.map(_ % Test)
 
   val nettyUtilsDependencies = slf4j
 
   val akkaHttp = Seq(
-    "com.typesafe.akka" %% "akka-http-core-experimental" % "1.0"
+    "com.typesafe.akka" %% "akka-http-core" % akkaVersion
   )
 
   def routesCompilerDependencies(scalaVersion: String) = Seq(
@@ -247,7 +249,7 @@ object Dependencies {
 
   val streamsDependencies = Seq(
     "org.reactivestreams" % "reactive-streams" % "1.0.0",
-    "com.typesafe.akka" %% "akka-stream-experimental" % "1.0",
+    "com.typesafe.akka" %% "akka-stream" % akkaVersion,
     scalaJava8Compat
   ) ++ specsBuild.map(_ % "test") ++ logback.map(_ % Test) ++ javaTestDeps
 

@@ -1,4 +1,4 @@
-<!--- Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com> -->
+<!--- Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com> -->
 # Removing `GlobalSettings`
 
 If you are keen to use dependency injection, we are recommending that you move out of your `GlobalSettings` implementation class as much code as possible. Ideally, you should be able to refactor your code so that it is possible to eliminate your `GlobalSettings` class altogether.
@@ -55,7 +55,7 @@ Also, mind that if your `Global` class is mixing the `WithFilters` trait, you sh
 
 * `GlobalSettings.onError`: Create a class that inherits from [`HttpErrorHandler`](api/java/play/http/HttpErrorHandler.html), and move the implementation of your `GlobalSettings.onError` inside the `HttpErrorHandler.onServerError` method. Read [[Error Handling|JavaErrorHandling]] for more information.
 
-* `GlobalSettings.onRequest`: Create a class that inherits from [`DefaultHttpRequestHandler`](api/java/play/http/DefaultHttpRequestHandler.html), and move the implementation of your `GlobalSettings.onRequest` method inside the `DefaultHttpRequestHandler.createAction` method. Read [[Request Handlers|JavaHttpRequestHandlers]] for more information.
+* `GlobalSettings.onRequest`: Create a class that inherits from [`DefaultHttpRequestHandler`](api/java/play/http/DefaultHttpRequestHandler.html), and move the implementation of your `GlobalSettings.onRequest` method inside the `DefaultHttpRequestHandler.createAction` method. Read [[Request Handlers|JavaActionCreator]] for more information.
 
 * `GlobalSettings.onRouteRequest`: There is no simple migration for this method when using the Java API. If you need this, you will have to keep your Global class around for a little longer.
 

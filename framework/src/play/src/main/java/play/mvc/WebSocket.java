@@ -168,7 +168,7 @@ public abstract class WebSocket {
                     } else {
                         Flow<Message, Message, ?> flow = AkkaStreams.bypassWith(
                                 Flow.<Message>create().collect(inMapper),
-                                new play.api.libs.streams.AkkaStreams.OnlyFirstCanFinishMerge(2),
+                                play.api.libs.streams.AkkaStreams.onlyFirstCanFinishMerge(2),
                                 resultOrFlow.right.get().map(outMapper::apply)
                         );
                         return F.Either.Right(flow);
@@ -239,7 +239,7 @@ public abstract class WebSocket {
 
     /**
      * Creates a WebSocket. The abstract {@code onReady} method is
-     * implemented using the specified {@code Callback2<In<A>, Out<A>>}
+     * implemented using the specified {@code BiConsumer<In<A>, Out<A>>}
      *
      * @param callback the callback used to implement onReady
      * @param <A> the in/out type of the legacy websocket
@@ -304,7 +304,7 @@ public abstract class WebSocket {
 
     /**
      * An extension of WebSocket that obtains its onReady from
-     * the specified {@code Callback2<In<A>, Out<A>>}.
+     * the specified {@code BiConsumer<In<A>, Out<A>>}.
      *
      * @deprecated Use WebSocket.accept* instead.
      */

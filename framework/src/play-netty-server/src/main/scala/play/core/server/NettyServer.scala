@@ -1,10 +1,12 @@
 /*
- * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.core.server
 
 import java.io.IOException
+import java.util.concurrent.atomic.AtomicLong
 
+import akka.Done
 import akka.actor.ActorSystem
 import akka.stream.Materializer
 import akka.stream.scaladsl.{ Flow, Sink, Source }
@@ -44,7 +46,7 @@ case object Native extends NettyTransport
 class NettyServer(
     config: ServerConfig,
     val applicationProvider: ApplicationProvider,
-    stopHook: () => Future[Unit],
+    stopHook: () => Future[_],
     val actorSystem: ActorSystem)(implicit val materializer: Materializer) extends Server {
 
   private val nettyConfig = config.configuration.underlying.getConfig("play.server.netty")
@@ -116,6 +118,7 @@ class NettyServer(
   private def bind(address: InetSocketAddress): (Channel, Source[Channel, _]) = {
     val serverChannelEventLoop = eventLoop.next
 
+    // Watches for channel events, and pushes them through a reactive streams publisher.
     val channelPublisher = new HandlerPublisher(serverChannelEventLoop, classOf[Channel])
 
     val channelClass = transport match {
@@ -126,7 +129,7 @@ class NettyServer(
     val bootstrap = new Bootstrap()
       .channel(channelClass)
       .group(serverChannelEventLoop)
-      .option(ChannelOption.AUTO_READ, java.lang.Boolean.FALSE)
+      .option(ChannelOption.AUTO_READ, java.lang.Boolean.FALSE) // publisher does ctx.read()
       .handler(channelPublisher)
       .localAddress(address)
 
@@ -135,26 +138,21 @@ class NettyServer(
     val channel = bootstrap.bind.await().channel()
     allChannels.add(channel)
 
-    (channel, Source(channelPublisher))
+    (channel, Source.fromPublisher(channelPublisher))
   }
 
   /**
-   * Create a sink for the incoming connection channels, using the given handler function to handle the
-   * requests/responses.
+   * Create a sink for the incoming connection channels.
    */
-  private def channelSink(secure: Boolean, handler: Channel => Flow[HttpRequest, HttpResponse, _]): Sink[Channel, Future[Unit]] = {
+  private def channelSink(secure: Boolean): Sink[Channel, Future[Done]] = {
+    Sink.foreach[Channel] { (connChannel: Channel) =>
 
-    Sink.foreach[Channel] { (channel: Channel) =>
+      // Setup the channel for explicit reads
+      connChannel.config().setOption(ChannelOption.AUTO_READ, java.lang.Boolean.FALSE)
 
-      // Select an event loop for this channel
-      val childChannelEventLoop = eventLoop.next()
+      setOptions(connChannel.config().setOption, nettyConfig.getConfig("option.child"))
 
-      // Setup the channel
-      channel.config().setOption(ChannelOption.AUTO_READ, java.lang.Boolean.FALSE)
-
-      setOptions(channel.config().setOption, nettyConfig.getConfig("option.child"))
-
-      val pipeline = channel.pipeline()
+      val pipeline = connChannel.pipeline()
       if (secure) {
         sslEngineProvider.map { sslEngineProvider =>
           val sslEngine = sslEngineProvider.createSSLEngine()
@@ -171,31 +169,17 @@ class NettyServer(
         pipeline.addLast("logging", new LoggingHandler(LogLevel.DEBUG))
       }
 
-      // Reactive streams publisher/subscribers
-      val requestPublisher = new HandlerPublisher(childChannelEventLoop, classOf[HttpRequest])
-      val responseSubscriber = new HandlerSubscriber[HttpResponse](childChannelEventLoop) {
-        override def error(error: Throwable) = {
-          handleSubscriberError(error)
-          super.error(error)
-        }
-      }
+      val requestHandler = new PlayRequestHandler(this)
 
-      // HttpStreamsServerHandler adapts the request/response bodies to/from reactive streams
-      pipeline.addLast("http-handler", new HttpStreamsServerHandler(Seq[ChannelHandler](requestPublisher, responseSubscriber).asJava))
+      // Use the streams handler to close off the connection.
+      pipeline.addLast("http-handler", new HttpStreamsServerHandler(Seq[ChannelHandler](requestHandler).asJava))
 
-      pipeline.addLast("request-publisher", requestPublisher)
-      pipeline.addLast("response-subscriber", responseSubscriber)
-
-      // Get the processor to handle this channel
-      val channelProcessor = handler(channel).toProcessor.run()
-
-      // Attach the publisher/subscriber
-      channelProcessor.subscribe(responseSubscriber)
-      requestPublisher.subscribe(channelProcessor)
+      pipeline.addLast("request-handler", requestHandler)
 
       // And finally, register the channel with the event loop
-      childChannelEventLoop.register(channel)
-      allChannels.add(channel)
+      val childChannelEventLoop = eventLoop.next()
+      childChannelEventLoop.register(connChannel)
+      allChannels.add(connChannel)
     }
   }
 
@@ -210,19 +194,17 @@ class NettyServer(
     }
   }
 
-  private val nettyServerFlow = new NettyServerFlow(this)
-
   // Maybe the HTTP server channel
   private val httpChannel = config.port.map { port =>
     val (serverChannel, channelSource) = bind(new InetSocketAddress(config.address, port))
-    channelSource.runWith(channelSink(secure = false, nettyServerFlow.createFlow))
+    channelSource.runWith(channelSink(secure = false))
     serverChannel
   }
 
   // Maybe the HTTPS server channel
   private val httpsChannel = config.sslPort.map { port =>
     val (serverChannel, channelSource) = bind(new InetSocketAddress(config.address, port))
-    channelSource.runWith(channelSink(secure = true, nettyServerFlow.createFlow))
+    channelSource.runWith(channelSink(secure = true))
     serverChannel
   }
 

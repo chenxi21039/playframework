@@ -1,4 +1,4 @@
-<!--- Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com> -->
+<!--- Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com> -->
 # Play Modules
 
 ## API hosting
@@ -12,7 +12,7 @@
 * **Short description:** Write a Swagger spec in your routes file
 
 ### zalando/play-swagger
-* **Website:** <https://github.com/iheartradio/play-swagger>
+* **Website:** <https://github.com/zalando/play-swagger>
 * **Short description:** Generate Play code from a Swagger spec
 
 
@@ -26,6 +26,9 @@
 * **Website:** <https://github.com/jlitola/play-sass>
 * **Short description:** Asset handling for [Sass](http://sass-lang.com/) files
 
+### Typescript Plugin
+* **Website:** <https://github.com/ArpNetworking/sbt-typescript>
+* **Short description:** A plugin for SBT that uses sbt-web to compile typescript resources
 
 
 ## Auth

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api.test
 
@@ -21,6 +21,7 @@ object SpecsSpec extends Specification {
       getConfig("foo") must beSome("bar")
     }
     "start the application" in new WithApplication(fakeApp("foo" -> "bar", "ehcacheplugin" -> "disabled")) {
+      //noinspection ScalaDeprecation
       Play.maybeApplication must beSome(app)
     }
   }

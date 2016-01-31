@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.libs.ws;
 
@@ -23,7 +23,9 @@ public class WS {
      * Returns the default WSClient object managed by the Play application.
      *
      * @return a configured WSClient
+     * @deprecated Please use a WSClient instance using DI (since 2.5)
      */
+    @Deprecated
     public static WSClient client() {
         Application app = play.Play.application();
         return app.injector().instanceOf(WSClient.class);
@@ -35,7 +37,9 @@ public class WS {
      * return an asynchronous {@code Promise<WSResponse>}.
      *
      * @param url the URL to request
+     * @deprecated Please use a WSClient instance using DI (since 2.5)
      */
+    @Deprecated
     public static WSRequest url(String url) {
         return client().url(url);
     }

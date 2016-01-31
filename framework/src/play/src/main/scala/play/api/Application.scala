@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2015 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.api
 
@@ -260,8 +260,10 @@ trait BuiltInComponents {
   implicit lazy val materializer: Materializer = ActorMaterializer()(actorSystem)
 
   lazy val cryptoConfig: CryptoConfig = new CryptoConfigParser(environment, configuration).get
+
   lazy val crypto: Crypto = new Crypto(cryptoConfig)
 
+  @deprecated("Use dependency injection", "2.5.x")
   lazy val global: GlobalSettings.Deprecated = play.api.GlobalSettings(configuration, environment)
 
   lazy val tempFileCreator: TemporaryFileCreator = new DefaultTemporaryFileCreator(applicationLifecycle)
