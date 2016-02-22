@@ -1,3 +1,6 @@
+/*
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ */
 package play.it
 
 import org.specs2.execute._
@@ -44,7 +47,7 @@ trait ServerIntegrationSpecification extends PendingUntilFixed with AroundEach {
    */
   def TestServer(
     port: Int,
-    application: Application = play.api.FakeApplication(),
+    application: Application = play.api.PlayCoreTestApplication(),
     sslPort: Option[Int] = None): play.api.test.TestServer = {
     play.api.test.TestServer(port, application, sslPort, Some(integrationServerProvider))
   }

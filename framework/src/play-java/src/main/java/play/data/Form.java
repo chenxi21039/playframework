@@ -7,13 +7,14 @@ import javax.validation.*;
 import javax.validation.metadata.*;
 
 import java.util.*;
+import java.util.function.Supplier;
 import java.lang.annotation.*;
 import java.util.regex.Pattern;
 
 import static java.lang.annotation.ElementType.*;
 import static java.lang.annotation.RetentionPolicy.*;
 
-import play.i18n.Messages;
+import play.i18n.MessagesApi;
 import play.mvc.Http;
 
 import static java.util.stream.Collectors.toList;
@@ -23,6 +24,7 @@ import play.libs.F.Tuple;
 import play.data.validation.*;
 
 import org.springframework.beans.*;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.validation.*;
 import org.springframework.validation.beanvalidation.*;
 import org.springframework.context.support.*;
@@ -351,7 +353,8 @@ public class Form<T> {
         dataBinder.setValidator(validator);
         dataBinder.setConversionService(play.data.format.Formatters.conversion);
         dataBinder.setAutoGrowNestedPaths(true);
-        dataBinder.bind(new MutablePropertyValues(objectData));
+        final Map<String, String> objectDataFinal = objectData;
+        withRequestLocale(() -> { dataBinder.bind(new MutablePropertyValues(objectDataFinal)); return null; });
         Set<ConstraintViolation<Object>> validationErrors;
         if (groups != null) {
             validationErrors = validator.validate(dataBinder.getTarget(), groups);
@@ -570,22 +573,46 @@ public class Form<T> {
 
     /**
      * Returns the form errors serialized as Json.
+     *
+     * @deprecated use {@link #errorsAsJson(MessagesApi)} instead, since 2.5.0
      */
+    @Deprecated
     public com.fasterxml.jackson.databind.JsonNode errorsAsJson() {
-        return errorsAsJson(Http.Context.Implicit.lang());
+        return errorsAsJson(play.api.Play.current().injector().instanceOf(MessagesApi.class));
+    }
+
+    /**
+     * Returns the form errors serialized as Json.
+     */
+    public com.fasterxml.jackson.databind.JsonNode errorsAsJson(MessagesApi messagesApi) {
+        return errorsAsJson(messagesApi, Http.Context.current() != null ? Http.Context.current().lang() : null);
+    }
+
+    /**
+     * Returns the form errors serialized as Json using the given Lang.
+     *
+     * @deprecated use {@link #errorsAsJson(MessagesApi, play.i18n.Lang)} instead, since 2.5.0
+     */
+    @Deprecated
+    public com.fasterxml.jackson.databind.JsonNode errorsAsJson(play.i18n.Lang lang) {
+        return errorsAsJson(play.api.Play.current().injector().instanceOf(MessagesApi.class), lang);
     }
 
     /**
      * Returns the form errors serialized as Json using the given Lang.
      */
-    public com.fasterxml.jackson.databind.JsonNode errorsAsJson(play.i18n.Lang lang) {
+    public com.fasterxml.jackson.databind.JsonNode errorsAsJson(MessagesApi messagesApi, play.i18n.Lang lang) {
         Map<String, List<String>> allMessages = new HashMap<>();
         for (String key : errors.keySet()) {
             List<ValidationError> errs = errors.get(key);
             if (errs != null && !errs.isEmpty()) {
                 List<String> messages = new ArrayList<String>();
                 for (ValidationError error : errs) {
-                    messages.add(play.i18n.Messages.get(lang, error.messages(), error.arguments()));
+                    if(messagesApi != null && lang != null) {
+                        messages.add(messagesApi.get(lang, error.messages(), error.arguments()));
+                    } else {
+                        messages.add(error.message());
+                    }
                 }
                 allMessages.put(key, messages);
             }
@@ -697,7 +724,8 @@ public class Form<T> {
                 if(beanWrapper.isReadableProperty(objectKey)) {
                     Object oValue = beanWrapper.getPropertyValue(objectKey);
                     if(oValue != null) {
-                        fieldValue = play.data.format.Formatters.print(beanWrapper.getPropertyTypeDescriptor(objectKey), oValue);
+                        final String objectKeyFinal = objectKey;
+                        fieldValue = withRequestLocale(() -> play.data.format.Formatters.print(beanWrapper.getPropertyTypeDescriptor(objectKeyFinal), oValue));
                     }
                 }
             }
@@ -764,6 +792,25 @@ public class Form<T> {
 
     public String toString() {
         return "Form(of=" + backedType + ", data=" + data + ", value=" + value +", errors=" + errors + ")";
+    }
+
+    /**
+     * Set the locale of the current request (if there is one) into Spring's LocaleContextHolder.
+     *
+     * @param code The code to execute while the locale is set
+     * @return the result of the code block
+     */
+    private static <T> T withRequestLocale(Supplier<T> code) {
+        try {
+            LocaleContextHolder.setLocale(Http.Context.current().lang().toLocale());
+        } catch(Exception e) {
+            // Just continue (Maybe there is no context or some internal error in LocaleContextHolder). System default locale will be used.
+        }
+        try {
+            return code.get();
+        } finally {
+            LocaleContextHolder.resetLocaleContext(); // Clean up ThreadLocal
+        }
     }
 
     /**

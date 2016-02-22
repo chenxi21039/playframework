@@ -6,9 +6,12 @@ package play.it.http
 import java.util.Locale.ENGLISH
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
+import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.mvc._
 import play.api.test._
 import play.api.libs.ws._
+import play.api.libs.iteratee._
+import play.api.libs.EventSource
 import play.it._
 import scala.util.Try
 import play.api.http.{ HttpEntity, HttpChunk, Status }
@@ -33,11 +36,7 @@ trait ScalaResultsHandlingSpec extends PlaySpecification with WsTestClient with 
 
     def withServer[T](result: Result)(block: Port => T) = {
       val port = testServerPort
-      running(TestServer(port, FakeApplication(
-        withRoutes = {
-          case _ => Action(result)
-        }
-      ))) {
+      running(TestServer(port, GuiceApplicationBuilder().routes { case _ => Action(result) }.build())) {
         block(port)
       }
     }
@@ -65,6 +64,17 @@ trait ScalaResultsHandlingSpec extends PlaySpecification with WsTestClient with 
         response.header(TRANSFER_ENCODING) must beSome("chunked")
         response.header(CONTENT_LENGTH) must beNone
         response.body must_== "abc"
+      }
+
+    "chunk results for event source strategy" in makeRequest(
+      Results.Ok.chunked(Source(List("a", "b")) via EventSource.flow).as("text/event-stream")
+    ) { response =>
+        response.header(CONTENT_TYPE) must beSome.like {
+          case value => value.toLowerCase(java.util.Locale.ENGLISH) must_== "text/event-stream"
+        }
+        response.header(TRANSFER_ENCODING) must beSome("chunked")
+        response.header(CONTENT_LENGTH) must beNone
+        response.body must_== "data: a\n\ndata: b\n\n"
       }
 
     "close the connection when no content length is sent" in withServer(

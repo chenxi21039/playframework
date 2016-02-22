@@ -5,17 +5,16 @@ package play.filters.cors
 
 import javax.inject.Inject
 
-import play.api.http.HttpFilters
-import play.api.inject.guice.GuiceApplicationBuilder
+import play.api.http.{ContentTypes, HttpFilters}
+import play.api.inject.bind
+import play.api.mvc.{Action, Result, Results}
 import play.api.routing.Router
 import play.api.routing.sird._
+import play.api.test.{FakeRequest, PlaySpecification}
+import play.api.{Application, Configuration}
+import play.filters.csrf.{CSRFCheck, CSRFFilter}
 
 import scala.concurrent.Future
-
-import play.api.Configuration
-import play.api.mvc.{ Action, Result, Results }
-import play.api.test.{ FakeRequest, FakeApplication, PlaySpecification }
-import play.api.inject.bind
 
 object CORSFilterSpec extends CORSCommonSpec {
 
@@ -24,15 +23,13 @@ object CORSFilterSpec extends CORSCommonSpec {
   }
 
   def withApplication[T](conf: Map[String, _ <: Any] = Map.empty)(block: => T): T = {
-    running(new GuiceApplicationBuilder()
-      .configure(conf)
-      .overrides(
-        bind[Router].to(Router.from {
-          case p"/error" => Action { req => throw sys.error("error") }
-          case _ => Action(Results.Ok)
-        }),
-        bind[HttpFilters].to[Filters]
-      ).build())(block)
+    running(_.configure(conf).overrides(
+      bind[Router].to(Router.from {
+        case p"/error" => Action { req => throw sys.error("error") }
+        case _ => Action(Results.Ok)
+      }),
+      bind[HttpFilters].to[Filters]
+    ))(_ => block)
   }
 
   "The CORSFilter" should {
@@ -50,29 +47,75 @@ object CORSFilterSpec extends CORSCommonSpec {
   }
 }
 
-object CORSActionBuilderSpec extends CORSCommonSpec {
+object CORSWithCSRFSpec extends CORSCommonSpec {
+  class Filters @Inject() (corsFilter: CORSFilter, csrfFilter: CSRFFilter) extends HttpFilters {
+    def filters = Seq(corsFilter, csrfFilter)
+  }
 
-  def withApplication[T](conf: Map[String, _ <: Any] = Map.empty)(block: => T): T = {
-    running(FakeApplication(
-      withRoutes = {
-        case (_, "/error") => CORSActionBuilder(Configuration.reference ++ Configuration.from(conf)) { req =>
-          throw sys.error("error")
-        }
-        case _ => CORSActionBuilder(Configuration.reference ++ Configuration.from(conf))(Results.Ok)
-      }
+  class FiltersWithoutCors @Inject() (csrfFilter: CSRFFilter) extends HttpFilters {
+    def filters = Seq(csrfFilter)
+  }
+
+  def withApp[T](filters: Class[_ <: HttpFilters] = classOf[Filters], conf: Map[String, _ <: Any] = Map())(block: Application => T): T = {
+    running(_.configure(conf).overrides(
+      bind[Router].to(Router.from {
+        case p"/error" => Action { req => throw sys.error("error") }
+        case _ => CSRFCheck(Action(Results.Ok))
+      }),
+      bind[HttpFilters].to(filters)
     ))(block)
   }
 
-  def withApplicationWithPathConfiguredAction[T](configPath: String, conf: Map[String, _ <: Any] = Map.empty)(block: => T): T = {
-    running(FakeApplication(
-      additionalConfiguration = conf,
-      withRoutes = {
-        case (_, "/error") => CORSActionBuilder(Configuration.reference ++ Configuration.from(conf), configPath = configPath) { req =>
-          throw sys.error("error")
-        }
-        case _ => CORSActionBuilder(Configuration.reference ++ Configuration.from(conf), configPath = configPath)(Results.Ok)
+  def withApplication[T](conf: Map[String, _] = Map.empty)(block: => T) =
+    withApp(classOf[Filters], conf)(_ => block)
+
+  private def corsRequest =
+    fakeRequest("POST", "/baz")
+      .withHeaders(
+        ORIGIN -> "http://localhost",
+        CONTENT_TYPE -> ContentTypes.FORM,
+        COOKIE -> "foo=bar"
+      )
+      .withBody("foo=1&bar=2")
+
+  "The CORSFilter" should {
+
+    "Mark CORS requests so the CSRF filter will let them through" in withApp() { app =>
+      val result = route(app, corsRequest).get
+
+      status(result) must_== OK
+      header(ACCESS_CONTROL_ALLOW_ORIGIN, result) must beSome
+    }
+
+    "Forbid CSRF requests when CORS filter is not installed" in withApp(classOf[FiltersWithoutCors]) { app =>
+      val result = route(app, corsRequest).get
+
+      status(result) must_== FORBIDDEN
+      header(ACCESS_CONTROL_ALLOW_ORIGIN, result) must beNone
+    }
+
+    commonTests
+  }
+}
+
+object CORSActionBuilderSpec extends CORSCommonSpec {
+
+  def withApplication[T](conf: Map[String, _ <: Any] = Map.empty)(block: => T): T = {
+    running(_.routes {
+      case (_, "/error") => CORSActionBuilder(Configuration.reference ++ Configuration.from(conf)) { req =>
+        throw sys.error("error")
       }
-    ))(block)
+      case _ => CORSActionBuilder(Configuration.reference ++ Configuration.from(conf))(Results.Ok)
+    })(_ => block)
+  }
+
+  def withApplicationWithPathConfiguredAction[T](configPath: String, conf: Map[String, _ <: Any] = Map.empty)(block: => T): T = {
+    running(_.configure(conf).routes {
+      case (_, "/error") => CORSActionBuilder(Configuration.reference ++ Configuration.from(conf), configPath = configPath) { req =>
+        throw sys.error("error")
+      }
+      case _ => CORSActionBuilder(Configuration.reference ++ Configuration.from(conf), configPath = configPath)(Results.Ok)
+    })(_ => block)
   }
 
   "The CORSActionBuilder with" should {
@@ -161,6 +204,16 @@ trait CORSCommonSpec extends PlaySpecification {
 
       status(result) must_== OK
       header(ACCESS_CONTROL_ALLOW_ORIGIN, result) must beSome("http://www.example.com:9000")
+    }
+
+    "not consider different protocols to be the same origin" in withApplication() {
+      val result = route(fakeRequest().withHeaders(
+        ORIGIN -> "https://www.example.com:9000",
+        HOST -> "www.example.com:9000"
+      )).get
+
+      status(result) must_== OK
+      header(ACCESS_CONTROL_ALLOW_ORIGIN, result) must beSome("https://www.example.com:9000")
     }
 
     "forbid an empty origin header" in withApplication() {

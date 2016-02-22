@@ -175,6 +175,14 @@ package play.api.mvc {
     } yield charset
 
     /**
+      * Convenience method for adding a single tag to this request
+      * @return the tagged request
+      */
+    def withTag(tagName: String, tagValue: String): RequestHeader = {
+      copy(tags = tags + (tagName -> tagValue))
+    }
+
+    /**
      * Copy the request.
      */
     def copy(
@@ -898,21 +906,21 @@ package play.api.mvc {
     def decodeSetCookieHeader(cookieHeader: String): Seq[Cookie] = {
       Try {
         val decoder = config.clientDecoder
-        SetCookieHeaderSeparatorRegex.split(cookieHeader).toSeq.map { cookieString =>
-          val cookie = decoder.decode(cookieString.trim)
-          Cookie(
-            cookie.name,
-            cookie.value,
-            if (cookie.maxAge == Integer.MIN_VALUE) None else Some(cookie.maxAge),
-            Option(cookie.path).getOrElse("/"),
-            Option(cookie.domain),
-            cookie.isSecure,
-            cookie.isHttpOnly
-          )
+        SetCookieHeaderSeparatorRegex.split(cookieHeader).toSeq.flatMap { cookieString =>
+          Option(decoder.decode(cookieString.trim)).map(cookie =>
+            Cookie(
+              cookie.name,
+              cookie.value,
+              if (cookie.maxAge == Integer.MIN_VALUE) None else Some(cookie.maxAge),
+              Option(cookie.path).getOrElse("/"),
+              Option(cookie.domain),
+              cookie.isSecure,
+              cookie.isHttpOnly
+            ))
         }
       }.getOrElse {
         logger.debug(s"Couldn't decode the Cookie header containing: $cookieHeader")
-        Nil
+        Seq.empty
       }
     }
 

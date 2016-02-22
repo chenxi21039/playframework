@@ -36,7 +36,7 @@ trait RequestTaggingHandler extends Handler {
  * An `EssentialAction` is a `Handler`, which means it is one of the objects
  * that Play uses to handle requests.
  */
-trait EssentialAction extends (RequestHeader => Accumulator[ByteString, Result]) with Handler {
+trait EssentialAction extends (RequestHeader => Accumulator[ByteString, Result]) with Handler { self =>
 
   /**
    * Returns itself, for better support in the routes file.
@@ -44,6 +44,12 @@ trait EssentialAction extends (RequestHeader => Accumulator[ByteString, Result])
    * @return itself
    */
   def apply() = this
+
+  def asJava: play.mvc.EssentialAction = new play.mvc.EssentialAction() {
+    import play.api.libs.concurrent.Execution.Implicits.defaultContext
+    def apply(rh: play.mvc.Http.RequestHeader) = self(rh._underlyingHeader).map(_.asJava).asJava
+    override def apply(rh: RequestHeader) = self(rh)
+  }
 
 }
 
@@ -146,7 +152,7 @@ trait BodyParser[+A] extends (RequestHeader => Accumulator[ByteString, Either[Re
    * @param ec The context to execute the supplied function with.
    *        The context is prepared on the calling thread.
    * @return the transformed body parser
-   * @see [[play.api.libs.iteratee.Iteratee.map]]
+   * @see [[play.api.libs.streams.Accumulator.map]]
    */
   def map[B](f: A => B)(implicit ec: ExecutionContext): BodyParser[B] = {
     // prepare execution context as body parser object may cross thread boundary
@@ -166,7 +172,7 @@ trait BodyParser[+A] extends (RequestHeader => Accumulator[ByteString, Either[Re
    *        The context prepared on the calling thread.
    * @return the transformed body parser
    * @see [[map]]
-   * @see [[play.api.libs.iteratee.Iteratee.mapM]]
+   * @see [[play.api.libs.streams.Accumulator.mapFuture]]
    */
   def mapM[B](f: A => Future[B])(implicit ec: ExecutionContext): BodyParser[B] = {
     // prepare execution context as body parser object may cross thread boundary

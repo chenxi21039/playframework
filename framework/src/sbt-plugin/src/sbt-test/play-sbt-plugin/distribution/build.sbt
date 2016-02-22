@@ -1,3 +1,7 @@
+//
+// Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+//
+
 name := "dist-sample"
 
 version := "1.0-SNAPSHOT"
@@ -5,6 +9,8 @@ version := "1.0-SNAPSHOT"
 lazy val root = (project in file(".")).enablePlugins(PlayScala)
 
 scalaVersion := Option(System.getProperty("scala.version")).getOrElse("2.11.7")
+
+routesGenerator := InjectedRoutesGenerator
 
 val checkStartScript = InputKey[Unit]("checkStartScript")
 

@@ -39,7 +39,7 @@ case class FakeHeaders(data: Seq[(String, String)] = Seq.empty) extends Headers(
  */
 case class FakeRequest[A](method: String, uri: String, headers: Headers, body: A, remoteAddress: String = "127.0.0.1", version: String = "HTTP/1.1", id: Long = 666, tags: Map[String, String] = Map.empty[String, String], secure: Boolean = false) extends Request[A] {
 
-  private def _copy[B](
+  def copyFakeRequest[B](
     id: Long = this.id,
     tags: Map[String, String] = this.tags,
     uri: String = this.uri,
@@ -70,7 +70,7 @@ case class FakeRequest[A](method: String, uri: String, headers: Headers, body: A
    * Constructs a new request with additional headers. Any existing headers of the same name will be replaced.
    */
   def withHeaders(newHeaders: (String, String)*): FakeRequest[A] = {
-    _copy(headers = headers.replace(newHeaders: _*))
+    copyFakeRequest(headers = headers.replace(newHeaders: _*))
   }
 
   /**
@@ -108,7 +108,7 @@ case class FakeRequest[A](method: String, uri: String, headers: Headers, body: A
    * Set a Form url encoded body to this request.
    */
   def withFormUrlEncodedBody(data: (String, String)*): FakeRequest[AnyContentAsFormUrlEncoded] = {
-    _copy(body = AnyContentAsFormUrlEncoded(play.utils.OrderPreserving.groupBy(data.toSeq)(_._1)))
+    copyFakeRequest(body = AnyContentAsFormUrlEncoded(play.utils.OrderPreserving.groupBy(data.toSeq)(_._1)))
   }
 
   def certs = Future.successful(IndexedSeq.empty)
@@ -117,42 +117,42 @@ case class FakeRequest[A](method: String, uri: String, headers: Headers, body: A
    * Adds a JSON body to the request.
    */
   def withJsonBody(json: JsValue): FakeRequest[AnyContentAsJson] = {
-    _copy(body = AnyContentAsJson(json))
+    copyFakeRequest(body = AnyContentAsJson(json))
   }
 
   /**
    * Adds an XML body to the request.
    */
   def withXmlBody(xml: NodeSeq): FakeRequest[AnyContentAsXml] = {
-    _copy(body = AnyContentAsXml(xml))
+    copyFakeRequest(body = AnyContentAsXml(xml))
   }
 
   /**
    * Adds a text body to the request.
    */
   def withTextBody(text: String): FakeRequest[AnyContentAsText] = {
-    _copy(body = AnyContentAsText(text))
+    copyFakeRequest(body = AnyContentAsText(text))
   }
 
   /**
    * Adds a raw body to the request
    */
   def withRawBody(bytes: ByteString): FakeRequest[AnyContentAsRaw] = {
-    _copy(body = AnyContentAsRaw(RawBuffer(bytes.size, bytes)))
+    copyFakeRequest(body = AnyContentAsRaw(RawBuffer(bytes.size, bytes)))
   }
 
   /**
    * Adds a multipart form data body to the request
    */
   def withMultipartFormDataBody(form: MultipartFormData[TemporaryFile]) = {
-    _copy(body = AnyContentAsMultipartFormData(form))
+    copyFakeRequest(body = AnyContentAsMultipartFormData(form))
   }
 
   /**
    * Adds a body to the request.
    */
   def withBody[B](body: B): FakeRequest[B] = {
-    _copy(body = body)
+    copyFakeRequest(body = body)
   }
 
   /**
@@ -194,6 +194,7 @@ import play.api.Application
  * @param additionalConfiguration Additional configuration
  * @param withRoutes A partial function of method name and path to a handler for handling the request
  */
+@deprecated("Use GuiceApplicationBuilder instead.", "2.5.0")
 case class FakeApplication(
     override val path: java.io.File = new java.io.File("."),
     override val classloader: ClassLoader = classOf[FakeApplication].getClassLoader,
@@ -205,10 +206,7 @@ case class FakeApplication(
     .in(Environment(path, classloader, Mode.Test))
     .global(withGlobal.orNull)
     .configure(additionalConfiguration)
-    .bindings(
-      bind[FakeRouterConfig] to FakeRouterConfig(withRoutes))
-    .overrides(
-      bind[Router].toProvider[FakeRouterProvider])
+    .routes(withRoutes)
     .build
 
   override def mode: Mode.Mode = app.mode
@@ -222,26 +220,3 @@ case class FakeApplication(
   override def injector: Injector = app.injector
 }
 
-private class FakeRoutes(
-    injected: PartialFunction[(String, String), Handler], fallback: Router) extends Router {
-  def documentation = fallback.documentation
-  // Use withRoutes first, then delegate to the parentRoutes if no route is defined
-  val routes = new AbstractPartialFunction[RequestHeader, Handler] {
-    override def applyOrElse[A <: RequestHeader, B >: Handler](rh: A, default: A => B) =
-      injected.applyOrElse((rh.method, rh.path), (_: (String, String)) => default(rh))
-    def isDefinedAt(rh: RequestHeader) = injected.isDefinedAt((rh.method, rh.path))
-  } orElse new AbstractPartialFunction[RequestHeader, Handler] {
-    override def applyOrElse[A <: RequestHeader, B >: Handler](rh: A, default: A => B) =
-      fallback.routes.applyOrElse(rh, default)
-    def isDefinedAt(x: RequestHeader) = fallback.routes.isDefinedAt(x)
-  }
-  def withPrefix(prefix: String) = {
-    new FakeRoutes(injected, fallback.withPrefix(prefix))
-  }
-}
-
-private case class FakeRouterConfig(withRoutes: PartialFunction[(String, String), Handler])
-
-private class FakeRouterProvider @Inject() (config: FakeRouterConfig, parent: RoutesProvider) extends Provider[Router] {
-  lazy val get: Router = new FakeRoutes(config.withRoutes, parent.get)
-}

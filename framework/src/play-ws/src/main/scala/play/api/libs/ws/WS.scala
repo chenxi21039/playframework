@@ -69,10 +69,20 @@ trait WSRequestMagnet {
  * {{{
  * import play.api.libs.ws._
  * import play.api.libs.ws.ahc._
+ * import akka.stream.Materializer
+ * import play.api.ApplicationLifecycle
+ * import javax.inject.Inject
+ * import scala.concurrent.Future
  *
- * val client = new AhcWSClient(new AhcConfigBuilder())
- * client.url("http://example.com/feed").get()
- * client.close() // must explicitly manage lifecycle
+ * class MyService @Inject() (lifecycle: ApplicationLifecycle)(implicit mat: Materializer) {
+ *   private val client = new AhcWSClient(new AhcConfigBuilder().build())
+ *   client.url("http://example.com/feed").get()
+ *   lifecycle.addStopHook(() =>
+ *     // Make sure you close the client after use, otherwise you'll leak threads and connections
+ *     client.close()
+ *     Future.successful(())
+ *   }
+ * }
  * }}}
  *
  * Or call the client directly:
@@ -86,7 +96,7 @@ trait WSRequestMagnet {
  * """
  *   |play.ws.ssl.trustManager = ...
  * """.stripMargin))
- * val parser = new DefaultWSConfigParser(configuration, Play.current.classloader)
+ * val parser = new DefaultWSConfigParser(configuration, app.classloader)
  * val builder = new AhcConfigBuilder(parser.parse())
  * val secureClient: WSClient = new AhcWSClient(builder.build())
  * val response = secureClient.url("https://secure.com").get()
@@ -96,6 +106,7 @@ trait WSRequestMagnet {
  * The value returned is a {@code Future[WSResponse]}, and you should use Play's asynchronous mechanisms to
  * use this response.
  */
+@deprecated("Inject WSClient into your component", "2.5.0")
 object WS {
 
   private val wsapiCache = Application.instanceCache[WSAPI]
@@ -108,10 +119,10 @@ object WS {
    * implicit application must be in scope.  Most of the time you will want the current app:
    *
    * {{{
-   * import play.api.Play.current
-   * val client = WS.client
+   * val client = WS.client(app)
    * }}}
    */
+  @deprecated("Inject WSClient into your component", "2.5.0")
   def client(implicit app: Application): WSClient = wsapi.client
 
   /**
@@ -119,13 +130,13 @@ object WS {
    * use to construct a request.
    *
    * {{{
-   *   import play.api.Play.current
-   *   WS.url("http://localhost/").get()
+   *   WS.url("http://localhost/")(app).get()
    * }}}
    *
    * @param url the URL to request
    * @param app the implicit application to use.
    */
+  @deprecated("Inject WSClient into your component", "2.5.0")
   def url(url: String)(implicit app: Application): play.api.libs.ws.WSRequest = wsapi(app).url(url)
 
   /**
@@ -168,7 +179,7 @@ object WS {
 }
 
 /**
- * The base WS API trait.  Plugins should extend this.
+ * The base WS API trait.
  */
 trait WSAPI {
 
@@ -566,8 +577,6 @@ object WSAuthScheme {
 
   case object KERBEROS extends WSAuthScheme
 
-  case object NONE extends WSAuthScheme
-
 }
 
 /**
@@ -632,6 +641,7 @@ trait WSProxyServer {
 
   def ntlmDomain: Option[String]
 
+  /** The realm's charset. */
   def encoding: Option[String]
 
   def nonProxyHosts: Option[Seq[String]]
@@ -658,6 +668,7 @@ case class DefaultWSProxyServer(
 
   ntlmDomain: Option[String] = None,
 
+  /** The realm's charset. */
   encoding: Option[String] = None,
 
   nonProxyHosts: Option[Seq[String]] = None) extends WSProxyServer

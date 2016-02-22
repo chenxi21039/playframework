@@ -1,3 +1,6 @@
+/*
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ */
 package play.libs.streams;
 
 import akka.actor.ActorSystem;
@@ -107,6 +110,6 @@ public class AccumulatorTest {
 
     @After
     public void tearDown() {
-        system.shutdown();
+        system.terminate();
     }
 }

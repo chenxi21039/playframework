@@ -1,3 +1,6 @@
+/*
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ */
 package javaguide.application.httpfilters;
 
 // #routing-info-access
@@ -8,6 +11,7 @@ import javax.inject.Inject;
 import akka.stream.Materializer;
 import play.Logger;
 import play.mvc.*;
+import play.routing.Router.Tags;
 
 public class RoutedLoggingFilter extends Filter {
 
@@ -23,8 +27,8 @@ public class RoutedLoggingFilter extends Filter {
         long startTime = System.currentTimeMillis();
         return nextFilter.apply(requestHeader).thenApply(result -> {
             Map<String, String> tags = requestHeader.tags();
-            String actionMethod = tags.get("ROUTE_CONTROLLER") +
-                "." + tags.get("ROUTE_ACTION_METHOD");
+            String actionMethod = tags.get(Tags.ROUTE_CONTROLLER) +
+                "." + tags.get(Tags.ROUTE_ACTION_METHOD);
             long endTime = System.currentTimeMillis();
             long requestTime = endTime - startTime;
 

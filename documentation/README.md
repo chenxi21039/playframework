@@ -1,3 +1,4 @@
+<!--- Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com> -->
 # Build documentation
 
 This is the Play documentation project.  It does not build with the rest of the Play projects, and uses its own sbt
@@ -39,7 +40,7 @@ Any directory under /manual called "code" is treated as a root of a test directo
 
 There is no out of the box integration, but you can use the [sbt-idea](https://github.com/mpeltonen/sbt-idea) plugin or the [Eclipse](https://github.com/typesafehub/sbteclipse) plugin to generate a project for you.
 
-NOTE: if you use sbt-idea, the generated project defines "com.typesafe.play" and other libraries as "runtime" and so does not expose the included libraries to the IDE.  Setting them to "test" manually makes everything work.
+> **Note:** if you use sbt-idea, the generated project defines "com.typesafe.play" and other libraries as "runtime" and so does not expose the included libraries to the IDE.  Setting them to "test" manually makes everything work.
 
 ## Testing
 

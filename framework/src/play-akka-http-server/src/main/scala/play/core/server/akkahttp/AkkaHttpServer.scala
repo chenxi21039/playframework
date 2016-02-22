@@ -1,3 +1,6 @@
+/*
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ */
 package play.core.server.akkahttp
 
 import java.security.{ Provider, SecureRandom }
@@ -239,7 +242,7 @@ class AkkaHttpServer(
       case NonFatal(e) => logger.error("Error while stopping logger", e)
     }
 
-    system.shutdown()
+    system.terminate()
 
     // Call provided hook
     // Do this last because the hooks were created before the server,

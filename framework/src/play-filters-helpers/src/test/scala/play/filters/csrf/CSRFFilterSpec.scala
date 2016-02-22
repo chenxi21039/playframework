@@ -7,6 +7,7 @@ import java.util.concurrent.CompletableFuture
 import javax.inject.Inject
 
 import play.api.http.HttpFilters
+import play.filters.csrf.CSRFConfig
 import play.mvc.Http
 
 import scala.concurrent.Future
@@ -16,7 +17,7 @@ import play.api.libs.json.Json
 import play.api.test._
 import scala.util.Random
 import play.api.libs.Crypto
-import play.api.inject.guice.GuiceApplicationLoader
+import play.api.inject.guice.{ GuiceApplicationBuilder, GuiceApplicationLoader }
 import play.api.{ Mode, Configuration, Environment }
 import play.api.ApplicationLoader.Context
 import play.core.DefaultWebCommands
@@ -53,12 +54,18 @@ object CSRFFilterSpec extends CSRFCommonSpecs {
       buildCsrfAddToken()(_.withHeaders(ACCEPT -> "text/html").head())(_.status must_== OK)
     }
 
-    // extra conditions for not doing a check
-    "not check non form bodies" in {
-      buildCsrfCheckRequest(false)(_.post(Json.obj("foo" -> "bar")))(_.status must_== OK)
+    // extra conditions for doing a check
+    "check non form bodies" in {
+      buildCsrfCheckRequest(false)(_.withCookies("foo" -> "bar").post(Json.obj("foo" -> "bar")))(_.status must_== FORBIDDEN)
+    }
+    "check all methods" in {
+      buildCsrfCheckRequest(false)(_.withCookies("foo" -> "bar").delete())(_.status must_== FORBIDDEN)
     }
     "not check safe methods" in {
-      buildCsrfCheckRequest(false)(_.put(Map("foo" -> "bar")))(_.status must_== OK)
+      buildCsrfCheckRequest(false)(_.withCookies("foo" -> "bar").options())(_.status must_== OK)
+    }
+    "not check requests with no cookies" in {
+      buildCsrfCheckRequest(false)(_.post(Map("foo" -> "bar")))(_.status must_== OK)
     }
 
     // other
@@ -80,13 +87,13 @@ object CSRFFilterSpec extends CSRFCommonSpecs {
       }
     }
 
-    val notBufferedFakeApp = FakeApplication(
-      additionalConfiguration = Map(
+    val notBufferedFakeApp = GuiceApplicationBuilder()
+      .configure(
         "play.crypto.secret" -> "foobar",
         "play.filters.csrf.body.bufferSize" -> "200",
         "play.http.filters" -> classOf[CsrfFilters].getName
-      ),
-      withRoutes = {
+      )
+      .routes {
         case _ => Action { req =>
           (for {
             body <- req.body.asFormUrlEncoded
@@ -99,7 +106,7 @@ object CSRFFilterSpec extends CSRFCommonSpecs {
           }).getOrElse(Results.NotFound)
         }
       }
-    )
+      .build()
 
     "feed a not fully buffered body once a check has been done and passes" in new WithServer(notBufferedFakeApp, testServerPort) {
       val token = Crypto.generateSignedToken

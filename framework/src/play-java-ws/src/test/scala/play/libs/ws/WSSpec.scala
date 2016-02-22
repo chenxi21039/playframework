@@ -1,5 +1,9 @@
+/*
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ */
 package play.libs.ws
 
+import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.mvc.{ Result, Action }
 import play.api.mvc.Results._
 import play.api.test._
@@ -8,7 +12,7 @@ object WSSpec extends PlaySpecification {
 
   sequential
 
-  val uploadApp = FakeApplication(withRoutes = {
+  val uploadApp = GuiceApplicationBuilder().routes {
     case ("POST", "/") =>
       Action { request =>
         request.body.asRaw.fold[Result](BadRequest) { raw =>
@@ -16,15 +20,14 @@ object WSSpec extends PlaySpecification {
           Ok(s"size=$size")
         }
       }
-  })
+  }.build()
 
-  "WS.url().post(InputStream)" should {
-    "uploads the stream" in new WithServer(app = uploadApp, port = 3333) {
+  "post(InputStream)" should {
+    "upload the stream" in new WithServer(app = uploadApp, port = 3333) {
+      val wsClient = app.injector.instanceOf(classOf[WSClient])
 
       val input = this.getClass.getClassLoader.getResourceAsStream("play/libs/ws/play_full_color.png")
-      val req = WS.url("http://localhost:3333").post(input).wrapped()
-
-      val rep = await(req)
+      val rep = wsClient.url("http://localhost:3333").post(input).toCompletableFuture.get()
 
       rep.getStatus must ===(200)
       rep.getBody must ===("size=20039")

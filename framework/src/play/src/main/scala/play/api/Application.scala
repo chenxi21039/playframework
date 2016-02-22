@@ -39,7 +39,7 @@ import scala.concurrent.Future
  * This will create an application using the current classloader.
  *
  */
-@implicitNotFound(msg = "You do not have an implicit Application in scope. If you want to bring the current running Application into context, just add import play.api.Play.current")
+@implicitNotFound(msg = "You do not have an implicit Application in scope. If you want to bring the current running Application into context, please use dependency injection.")
 trait Application {
 
   /**
@@ -56,6 +56,10 @@ trait Application {
    * `Dev`, `Prod` or `Test`
    */
   def mode: Mode.Mode
+
+  private[play] def isDev = (mode == Mode.Dev)
+  private[play] def isTest = (mode == Mode.Test)
+  private[play] def isProd = (mode == Mode.Prod)
 
   @deprecated("Use dependency injection", "2.5.0")
   def global: GlobalSettings.Deprecated = injector.instanceOf[GlobalSettings.Deprecated]

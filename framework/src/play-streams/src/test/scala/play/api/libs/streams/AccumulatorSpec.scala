@@ -1,3 +1,6 @@
+/*
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ */
 package play.api.libs.streams
 
 import akka.actor.ActorSystem
@@ -18,8 +21,8 @@ object AccumulatorSpec extends Specification {
     try {
       block(ActorMaterializer()(system))
     } finally {
-      system.shutdown()
-      system.awaitTermination()
+      system.terminate()
+      Await.result(system.whenTerminated, Duration.Inf)
     }
   }
 

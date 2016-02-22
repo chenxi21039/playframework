@@ -1,3 +1,6 @@
+/*
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ */
 package scalaguide.binder.controllers
 
 
@@ -5,7 +8,7 @@ import play.api._
 import play.api.mvc._
 import scalaguide.binder.models._
 
-class BinderApplication extends Controller{
+class BinderApplication extends Controller {
  
   //#path
   def user(user: User) = Action {

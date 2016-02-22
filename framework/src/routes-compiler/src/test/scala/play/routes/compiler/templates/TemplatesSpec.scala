@@ -1,11 +1,11 @@
+/*
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ */
 package play.routes.compiler.templates
 
 import org.specs2.mutable.Specification
 import play.routes.compiler._
 
-/**
- * Created by mtrovo on 12/7/15.
- */
 object TemplatesSpec extends Specification {
   "javascript reverse routes" should {
     "collect parameter names with index appended" in {

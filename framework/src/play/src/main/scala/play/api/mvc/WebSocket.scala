@@ -4,7 +4,7 @@
 package play.api.mvc
 
 import akka.stream.Materializer
-import akka.stream.scaladsl.{ Keep, Source, Sink, Flow }
+import akka.stream.scaladsl.{ Source, Sink, Flow }
 import akka.util.ByteString
 import play.api.http.websocket._
 import play.api.libs.iteratee._
@@ -17,7 +17,6 @@ import scala.concurrent.{ ExecutionContext, Promise, Future }
 import play.api.libs.iteratee.Execution.Implicits.trampoline
 import akka.actor.{ Props, ActorRef }
 import play.api.Application
-import scala.reflect.ClassTag
 
 import scala.util.control.NonFatal
 
@@ -273,7 +272,7 @@ object WebSocket {
    *   }
    * }}}
    */
-  @deprecated("Use accept with a flow that wraps a Sink.actorRef and Source.actorRef, or play.api.libs.Streams.actorFlow", "2.5.0")
+  @deprecated("Use accept with a flow that wraps a Sink.actorRef and Source.actorRef, or play.api.libs.Streams.ActorFlow.actorRef", "2.5.0")
   def acceptWithActor[In, Out](f: RequestHeader => HandlerProps)(implicit transformer: MessageFlowTransformer[In, Out],
     app: Application, mat: Materializer): WebSocket = {
     tryAcceptWithActor { req =>
@@ -302,11 +301,11 @@ object WebSocket {
    *   }
    * }}}
    */
-  @deprecated("Use acceptOrResult with a flow that wraps a Sink.actorRef and Source.actorRef, or play.api.libs.Streams.actorFlow", "2.5.0")
+  @deprecated("Use acceptOrResult with a flow that wraps a Sink.actorRef and Source.actorRef, or play.api.libs.Streams.ActorFlow.actorRef", "2.5.0")
   def tryAcceptWithActor[In, Out](f: RequestHeader => Future[Either[Result, HandlerProps]])(implicit transformer: MessageFlowTransformer[In, Out],
     app: Application, mat: Materializer): WebSocket = {
 
-    implicit val system = Akka.system
+    implicit val system = app.actorSystem
 
     acceptOrResult(f.andThen(_.map(_.right.map { props =>
       ActorFlow.actorRef(props)

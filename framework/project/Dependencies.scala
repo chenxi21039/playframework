@@ -6,7 +6,7 @@ import buildinfo.BuildInfo
 
 object Dependencies {
 
-  val akkaVersion = "2.4.2-RC1"
+  val akkaVersion = "2.4.2"
 
   val specsVersion = "3.6.6"
   val specsBuild = Seq(
@@ -25,16 +25,16 @@ object Dependencies {
     "com.fasterxml.jackson.core" % "jackson-databind",
     "com.fasterxml.jackson.datatype" % "jackson-datatype-jdk8",
     "com.fasterxml.jackson.datatype" % "jackson-datatype-jsr310"
-  ).map(_ % "2.6.0")
+  ).map(_ % "2.7.1")
 
-  val slf4j = Seq("slf4j-api", "jul-to-slf4j", "jcl-over-slf4j").map("org.slf4j" % _ % "1.7.13")
-  val logback = Seq("logback-core", "logback-classic").map("ch.qos.logback" % _ % "1.1.3")
+  val slf4j = Seq("slf4j-api", "jul-to-slf4j", "jcl-over-slf4j").map("org.slf4j" % _ % "1.7.16")
+  val logback = Seq("logback-core", "logback-classic").map("ch.qos.logback" % _ % "1.1.4")
 
   val guava = "com.google.guava" % "guava" % "19.0"
   val findBugs = "com.google.code.findbugs" % "jsr305" % "3.0.1" // Needed by guava
   val mockitoAll = "org.mockito" % "mockito-all" % "1.10.19"
 
-  val h2database = "com.h2database" % "h2" % "1.4.190"
+  val h2database = "com.h2database" % "h2" % "1.4.191"
   val derbyDatabase = "org.apache.derby" % "derby" % "10.12.1.1"
 
   val acolyteVersion = "1.0.34-j7p"
@@ -52,13 +52,8 @@ object Dependencies {
 
   val jpaDeps = Seq(
     "org.hibernate.javax.persistence" % "hibernate-jpa-2.1-api" % "1.0.0.Final",
-    "org.hibernate" % "hibernate-entitymanager" % "5.0.5.Final" % "test"
+    "org.hibernate" % "hibernate-entitymanager" % "5.1.0.Final" % "test"
   )
-
-  val link = Seq(
-    "org.javassist" % "javassist" % "3.20.0-GA"
-  )
-  val javassist = link
 
   val scalaJava8Compat = "org.scala-lang.modules" %% "scala-java8-compat" % "0.7.0"
   def scalaParserCombinators(scalaVersion: String) = CrossVersion.partialVersion(scalaVersion) match {
@@ -66,7 +61,7 @@ object Dependencies {
     case _ => Nil
   }
 
-  val springFrameworkVersion = "4.2.3.RELEASE"
+  val springFrameworkVersion = "4.2.4.RELEASE"
 
   val javaDeps = Seq(
     scalaJava8Compat,
@@ -98,8 +93,8 @@ object Dependencies {
     guava,
     findBugs,
 
-    "org.apache.tomcat" % "tomcat-servlet-api" % "8.0.30"
-  ) ++ javassist ++ specsBuild.map(_ % Test) ++ logback.map(_ % Test)
+    "org.apache.tomcat" % "tomcat-servlet-api" % "8.0.32"
+  ) ++ specsBuild.map(_ % Test) ++ logback.map(_ % Test)
 
   val junitInterface = "com.novocode" % "junit-interface" % "0.11"
   val junit = "junit" % "junit" % "4.12"
@@ -111,7 +106,7 @@ object Dependencies {
     mockitoAll
   ).map(_ % Test)
 
-  val jodatime = "joda-time" % "joda-time" % "2.9.1"
+  val jodatime = "joda-time" % "joda-time" % "2.9.2"
   val jodaConvert = "org.joda" % "joda-convert" % "1.8.1"
 
   def runtime(scalaVersion: String) =
@@ -218,23 +213,19 @@ object Dependencies {
       "org.scala-lang" % "scala-reflect" % scalaVersion % "provided",
       typesafeConfig,
 
-      guava,
-
-      h2database,
-
       jnotify,
 
       sbtDep("com.typesafe.sbt" % "sbt-twirl" % BuildInfo.sbtTwirlVersion),
 
       sbtDep("com.typesafe.sbt" % "sbt-native-packager" % BuildInfo.sbtNativePackagerVersion),
 
-      sbtDep("com.typesafe.sbt" % "sbt-web" % "1.2.2"),
+      sbtDep("com.typesafe.sbt" % "sbt-web" % "1.2.3"),
       sbtDep("com.typesafe.sbt" % "sbt-js-engine" % "1.1.3")
-    ) ++ javassist ++ specsBuild.map(_ % Test) ++ logback.map(_ % Test)
+    ) ++ specsBuild.map(_ % Test) ++ logback.map(_ % Test)
   }
 
   val playdocWebjarDependencies = Seq(
-    "org.webjars" % "jquery"   % "2.1.4"    % "webjars",
+    "org.webjars" % "jquery"   % "2.2.0"    % "webjars",
     "org.webjars" % "prettify" % "4-Mar-2013" % "webjars"
   )
 
@@ -282,7 +273,7 @@ object Dependencies {
 
   val playWsDeps = Seq(
     guava,
-    "org.asynchttpclient" % "async-http-client" % "2.0.0-alpha14"
+    "org.asynchttpclient" % "async-http-client" % "2.0.0-RC9"
   ) ++
     Seq("signpost-core", "signpost-commonshttp4").map("oauth.signpost" % _  % "1.2.1.2") ++
     logback.map(_ % Test) ++
@@ -290,7 +281,7 @@ object Dependencies {
     mockitoAll % Test
 
   val playDocsSbtPluginDependencies = Seq(
-    "com.typesafe.play" %% "play-doc" % "1.2.2"
+    "com.typesafe.play" %% "play-doc" % "1.3.0"
   )
 
 }

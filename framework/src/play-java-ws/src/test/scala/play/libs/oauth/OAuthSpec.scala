@@ -1,16 +1,17 @@
 /*
- * Copyright (C) 2009-2014 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
  */
 package play.libs.oauth
 
+import java.util.concurrent.CompletionStage
+
 import akka.util.ByteString
+import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.mvc._
 import play.api.test._
 
 import scala.concurrent.Promise
-import play.libs.F
 import play.libs.oauth.OAuth._
-import play.libs.ws.WS
 import play.api.libs.oauth.OAuthRequestVerifier
 
 class OAuthSpec extends PlaySpecification {
@@ -48,18 +49,18 @@ class OAuthSpec extends PlaySpecification {
     }
   }
 
-  def receiveRequest(makeRequest: (play.libs.ws.WSClient, String) => F.Promise[_]): (RequestHeader, ByteString, String) = {
+  def receiveRequest(makeRequest: (play.libs.ws.WSClient, String) => CompletionStage[_]): (RequestHeader, ByteString, String) = {
     val hostUrl = "http://localhost:" + testServerPort
     val promise = Promise[(RequestHeader, ByteString)]()
-    val app = FakeApplication(withRoutes = {
+    val app = GuiceApplicationBuilder().routes {
       case _ => Action(BodyParsers.parse.raw) { request =>
         promise.success((request, request.body.asBytes().getOrElse(ByteString.empty)))
         Results.Ok
       }
-    })
+    }.build()
     running(TestServer(testServerPort, app)) {
       val client = app.injector.instanceOf(classOf[play.libs.ws.WSClient])
-      makeRequest(client, hostUrl).get(30000l)
+      makeRequest(client, hostUrl).toCompletableFuture.get()
     }
     val (request, body) = await(promise.future)
     (request, body, hostUrl)

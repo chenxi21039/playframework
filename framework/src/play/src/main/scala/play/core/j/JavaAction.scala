@@ -4,7 +4,7 @@
 package play.core.j
 
 import java.util.concurrent.CompletionStage
-import javax.inject.Inject
+import javax.inject.{Provider, Inject}
 
 import play.api.http.{ActionCompositionConfiguration, HttpConfiguration}
 import play.api.inject.Injector
@@ -77,9 +77,9 @@ abstract class JavaAction(components: JavaHandlerComponents) extends Action[play
       }
     }
 
-    val baseAction = components.requestHandler.createAction(javaContext.request, annotations.method)
+    val baseAction = components.actionCreator.createAction(javaContext.request, annotations.method)
 
-    val endOfChainAction = if (config.executeRequestHandlerActionFirst) {
+    val endOfChainAction = if (config.executeActionCreatorActionFirst) {
       rootAction
     } else {
       baseAction.delegate = rootAction
@@ -88,13 +88,13 @@ abstract class JavaAction(components: JavaHandlerComponents) extends Action[play
 
     val finalUserDeclaredAction = annotations.actionMixins.foldLeft[JAction[_ <: Any]](endOfChainAction) {
       case (delegate, (annotation, actionClass)) =>
-        val action = components.injector.instanceOf(actionClass).asInstanceOf[play.mvc.Action[Object]]
+        val action = components.getAction(actionClass).asInstanceOf[play.mvc.Action[Object]]
         action.configuration = annotation
         action.delegate = delegate
         action
     }
 
-    val finalAction = components.requestHandler.wrapAction(if (config.executeRequestHandlerActionFirst) {
+    val finalAction = components.actionCreator.wrapAction(if (config.executeActionCreatorActionFirst) {
       baseAction.delegate = finalUserDeclaredAction
       baseAction
     } else {
@@ -128,9 +128,17 @@ trait JavaHandler extends Handler {
   def withComponents(components: JavaHandlerComponents): Handler
 }
 
+trait JavaHandlerComponents {
+  def getBodyParser[A <: JBodyParser[_]](parserClass: Class[A]): A
+  def getAction[A <: JAction[_]](actionClass: Class[A]): A
+  def actionCreator: play.http.ActionCreator
+}
+
 /**
  * The components necessary to handle a Java handler.
  */
-class JavaHandlerComponents @Inject() (val injector: Injector,
-  val requestHandler: play.http.HttpRequestHandler)
+class DefaultJavaHandlerComponents @Inject() (injector: Injector, val actionCreator: play.http.ActionCreator) extends JavaHandlerComponents {
+  def getBodyParser[A <: JBodyParser[_]](parserClass: Class[A]): A = injector.instanceOf(parserClass)
+  def getAction[A <: JAction[_]](actionClass: Class[A]): A = injector.instanceOf(actionClass)
+}
 

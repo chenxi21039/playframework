@@ -1,3 +1,6 @@
+/*
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ */
 package play.mvc;
 
 import java.util.concurrent.CompletionStage;
@@ -22,7 +25,7 @@ public abstract class Filter extends EssentialFilter {
 
     @Override
     public EssentialAction apply(EssentialAction next) {
-        return EssentialAction.fromScala(asScala().apply(next));
+        return asScala().apply(next).asJava();
     }
 
     public play.api.mvc.Filter asScala() {
@@ -34,7 +37,8 @@ public abstract class Filter extends EssentialFilter {
 
             @Override
             public play.api.mvc.EssentialAction apply(play.api.mvc.EssentialAction next) {
-                return Filter.this.apply(next);
+                // Manually mix in the implementation from the EssentialAction trait
+                return play.api.mvc.Filter$class.apply(this, next);
             }
 
             @Override
@@ -49,7 +53,11 @@ public abstract class Filter extends EssentialFilter {
                     ).thenApply(r -> r.asScala())
                 );
             }
+
+            @Override
+            public EssentialFilter asJava() {
+                return Filter.this;
+            }
         };
     }
-
 }

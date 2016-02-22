@@ -1,4 +1,4 @@
-/* 
+/*
  * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
  */
 
@@ -7,7 +7,7 @@ import sbt._
 import Keys._
 import com.typesafe.tools.mima.plugin.MimaPlugin.mimaDefaultSettings
 import com.typesafe.tools.mima.plugin.MimaKeys.{
-  previousArtifact, binaryIssueFilters, reportBinaryIssues
+  previousArtifacts, binaryIssueFilters, reportBinaryIssues
 }
 import com.typesafe.tools.mima.core._
 
@@ -70,11 +70,11 @@ object BuildSettings {
    * These settings are used by all projects that are part of the runtime, as opposed to development, mode of Play.
    */
   def playRuntimeSettings: Seq[Setting[_]] = playCommonSettings ++ mimaDefaultSettings ++ Seq(
-    previousArtifact := {
+    previousArtifacts := {
       if (crossPaths.value) {
-        Some(organization.value % s"${moduleName.value}_${scalaBinaryVersion.value}" % previousVersion)
+        Set(organization.value % s"${moduleName.value}_${scalaBinaryVersion.value}" % previousVersion)
       } else {
-        Some(organization.value % moduleName.value % previousVersion)
+        Set(organization.value % moduleName.value % previousVersion)
       }
     },
     Docs.apiDocsInclude := true
@@ -170,7 +170,6 @@ object PlayBuild extends Build {
   import Generators._
 
   lazy val BuildLinkProject = PlayNonCrossBuiltProject("Build-Link", "build-link")
-    .settings(libraryDependencies ++= link)
     .dependsOn(PlayExceptionsProject)
 
   lazy val RunSupportProject = PlayDevelopmentProject("Run-Support", "run-support")
@@ -395,13 +394,13 @@ object PlayBuild extends Build {
   lazy val PlayFiltersHelpersProject = PlayCrossBuiltProject("Filters-Helpers", "play-filters-helpers")
     .settings(
       parallelExecution in Test := false
-    ).dependsOn(PlayProject, PlaySpecs2Project % "test", PlayJavaProject % "test", PlayWsProject % "test")
+    ).dependsOn(PlayProject, PlayJavaProject, PlaySpecs2Project % "test", PlayWsProject % "test")
 
   // This project is just for testing Play, not really a public artifact
   lazy val PlayIntegrationTestProject = PlayCrossBuiltProject("Play-Integration-Test", "play-integration-test")
     .settings(
       parallelExecution in Test := false,
-      previousArtifact := None
+      previousArtifacts := Set.empty
     )
     .dependsOn(PlayProject % "test->test", PlayLogback % "test->test", PlayWsProject, PlayWsJavaProject, PlaySpecs2Project)
     .dependsOn(PlayFiltersHelpersProject)

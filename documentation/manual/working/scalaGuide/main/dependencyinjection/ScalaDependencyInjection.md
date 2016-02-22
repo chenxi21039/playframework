@@ -5,7 +5,7 @@ Dependency injection is a way that you can separate your components so that they
 
 Out of the box, Play provides runtime dependency injection based on [JSR 330](https://jcp.org/en/jsr/detail?id=330).  Runtime dependency injection is so called because the dependency graph is created, wired and validated at runtime.  If a dependency cannot be found for a particular component, you won't get an error until you run your application.  In contrast, Play also supports [[compile time dependency injection|ScalaCompileTimeDependencyInjection]], where errors in the dependency graph are detected and thrown at compile time.
 
-The default JSR 330 implementation that comes with Play is [Guice](https://github.com/google/guice), but other JSR 330 implementations can be plugged in.
+The default JSR 330 implementation that comes with Play is [Guice](https://github.com/google/guice), but other JSR 330 implementations can be plugged in. The [Guice wiki](https://github.com/google/guice/wiki/) is a great resource for learning more about the features of Guice and DI design patterns in general.
 
 ## Declaring dependencies
 
@@ -13,7 +13,9 @@ If you have a component, such as a controller, and it requires some other compon
 
 @[constructor](code/RuntimeDependencyInjection.scala)
 
-Note that the `@Inject` annotation must come after the class name but before the constructor parameters, and must have parenthesis.
+Note that the `@Inject` annotation must come after the class name but before the constructor parameters, and must have parentheses.
+
+Also, Guice does come with several other [types of injections](https://github.com/google/guice/wiki/Injections), but constructor injection is generally the most clear, concise, and testable in Scala, so we recommend using it.
 
 ## Dependency injecting controllers
 
@@ -21,17 +23,22 @@ There are two ways to make Play use dependency injected controllers.
 
 ### Injected routes generator
 
-By default, Play will generate a static router, that assumes that all actions are static methods.  By configuring Play to use the injected routes generator, you can get Play to generate a router that will declare all the controllers that it routes to as dependencies, allowing your controllers to be dependency injected themselves.
+By default (since 2.5.0), Play will generate a router that will declare all the controllers that it routes to as dependencies, allowing your controllers to be dependency injected themselves.
 
-We recommend always using the injected routes generator, the static routes generator exists primarily as a tool to aid migration so that existing projects don't have to make all their controllers non static at once.
 
-To enable the injected routes generator, add the following to your build settings in `build.sbt`:
+To enable the injected routes generator specifically, add the following to your build settings in `build.sbt`:
 
 @[content](code/injected.sbt)
 
 When using the injected routes generator, prefixing the action with an `@` symbol takes on a special meaning, it means instead of the controller being injected directly, a `Provider` of the controller will be injected.  This allows, for example, prototype controllers, as well as an option for breaking cyclic dependencies.
 
-### Injected actions
+### Static routes generator
+
+You can configure Play to use the legacy (pre 2.5.0) static routes generator, that assumes that all actions are static methods.  To configure the project, add the following to build.sbt:
+
+@[content](code/static.sbt)
+
+We recommend always using the injected routes generator.  The static routes generator exists primarily as a tool to aid migration so that existing projects don't have to make all their controllers non static at once.
 
 If using the static routes generator, you can indicate that an action has an injected controller by prefixing the action with `@`, like so:
 
@@ -57,13 +64,13 @@ Some components may need to be cleaned up when Play shuts down, for example, to 
 
 @[cleanup](code/RuntimeDependencyInjection.scala)
 
-The `ApplicationLifecycle` will stop all components in reverse order from when they were created.  This means any components that you depend on can still safely be used in your components stop hook, since because you depend on them, they must have been created before your component was, and therefore won't be stopped until after your component is stopped.
+The `ApplicationLifecycle` will stop all components in reverse order from when they were created.  This means any components that you depend on can still safely be used in your component's stop hook. Because you depend on them, they must have been created before your component was, and therefore won't be stopped until after your component is stopped.
 
 > **Note:** It's very important to ensure that all components that register a stop hook are singletons.  Any non singleton components that register stop hooks could potentially be a source of memory leaks, since a new stop hook will be registered each time the component is created.
 
 ## Providing custom bindings
 
-It is considered good practice to define an trait for a component, and have other classes depend on that trait, rather than the implementation of the component.  By doing that, you can inject different implementations, for example you inject a mock implementation when testing your application.
+It is considered good practice to define a trait for a component, and have other classes depend on that trait, rather than the implementation of the component.  By doing that, you can inject different implementations, for example you inject a mock implementation when testing your application.
 
 In this case, the DI system needs to know which implementation should be bound to that trait.  The way we recommend that you declare this depends on whether you are writing a Play application as an end user of Play, or if you are writing library that other Play applications will consume.
 
@@ -136,6 +143,18 @@ In order to maximise cross framework compatibility, keep in mind the following t
 If there is a module that you don't want to be loaded, you can exclude it by appending it to the `play.modules.disabled` property in `application.conf`:
 
     play.modules.disabled += "play.api.db.evolutions.EvolutionsModule"
+
+## Managing circular dependencies
+
+Circular dependencies happen when one of your components depends on another component that depends on the original component (either directly or indirectly). For example:
+
+@[circular](code/RuntimeDependencyInjection.scala)
+
+In this case, `Foo` depends on `Bar`, which depends on `Baz`, which depends on `Foo`. So you won't be able to instantate any of these classes. You can work around this problem by using a `Provider`:
+
+@[circular-provider](code/RuntimeDependencyInjection.scala)
+
+Generally, circular dependencies can be resolved by breaking up your components in a more atomic way, or finding a more specific component to depend on. A common problem is a dependency on `Application`. When your component depends on `Application` it's saying that it needs a complete application to do its job; typically that's not the case. Your dependencies should be on more specific components (e.g. `Environment`) that have the specific functionality you need. As a last resort you can work around the problem by injecting a `Provider[Application]`.
 
 ## Advanced: Extending the GuiceApplicationLoader
 

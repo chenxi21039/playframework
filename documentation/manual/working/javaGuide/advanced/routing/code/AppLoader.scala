@@ -1,3 +1,6 @@
+/*
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ */
 import play.api.ApplicationLoader.Context
 import play.api._
 import play.api.libs.concurrent.Execution.Implicits._
@@ -6,7 +9,6 @@ import play.api.mvc._
 import play.api.routing.Router
 import play.api.routing.sird._
 import scala.concurrent.Future
-import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.inject.bind
 import router.RoutingDslBuilder
 
@@ -19,7 +21,7 @@ class AppLoader extends ApplicationLoader {
 
 class MyComponents(context: Context) extends BuiltInComponentsFromContext(context) {
   lazy val router = Router.from {
-       RoutingDslBuilder.getRouter().routes
+       RoutingDslBuilder.getRouter.asScala.routes
   }
 }
 //#load

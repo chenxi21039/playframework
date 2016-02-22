@@ -1,3 +1,6 @@
+/*
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ */
 package play.api.test
 
 import akka.actor.ActorSystem
@@ -76,7 +79,7 @@ trait WsTestClient {
       block(wrappedClient)
     } finally {
       client.close()
-      system.shutdown()
+      system.terminate()
     }
   }
 }

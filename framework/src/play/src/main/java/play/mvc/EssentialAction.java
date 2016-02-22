@@ -1,3 +1,6 @@
+/*
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ */
 package play.mvc;
 
 import java.util.function.Function;
@@ -30,22 +33,6 @@ public abstract class EssentialAction
           }
         };
     }
-  
-    public static EssentialAction fromScala(play.api.mvc.EssentialAction action) {
-        return new EssentialAction() {
-            @Override
-            public Accumulator<ByteString, Result> apply(RequestHeader rh) {
-                return action.apply(rh._underlyingHeader())
-                    .asJava()
-                    .map(r -> r.asJava(), Execution.internalContext());
-            }
-
-            @Override
-            public play.api.libs.streams.Accumulator<ByteString, play.api.mvc.Result> apply(play.api.mvc.RequestHeader rh) {
-                return action.apply(rh);
-            }
-        };
-    }
 
     public abstract Accumulator<ByteString, Result> apply(RequestHeader requestHeader);
 
@@ -61,5 +48,8 @@ public abstract class EssentialAction
         return this;
     }
 
-
+    @Override
+    public EssentialAction asJava() {
+        return this;
+    }
 }

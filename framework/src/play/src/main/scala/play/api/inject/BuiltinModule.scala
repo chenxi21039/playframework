@@ -4,19 +4,20 @@
 package play.api.inject
 
 import java.util.concurrent.Executor
+import javax.inject.{ Inject, Provider, Singleton }
 
 import akka.actor.ActorSystem
-import javax.inject.{ Singleton, Inject, Provider }
 import akka.stream.Materializer
 import play.api._
 import play.api.http._
 import play.api.libs.Files.{ DefaultTemporaryFileCreator, TemporaryFileCreator }
-import play.api.libs.{ CryptoConfig, Crypto, CryptoConfigParser }
-import play.api.libs.concurrent.{ MaterializerProvider, ExecutionContextProvider, ActorSystemProvider }
+import play.api.libs.concurrent.{ ActorSystemProvider, ExecutionContextProvider, MaterializerProvider }
+import play.api.libs.{ Crypto, CryptoConfig, CryptoConfigParser }
 import play.api.routing.Router
+import play.core.j.JavaRouterAdapter
 import play.libs.concurrent.HttpExecutionContext
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ ExecutionContext, ExecutionContextExecutor }
 
 /**
  * The Play BuiltinModule.
@@ -45,10 +46,12 @@ class BuiltinModule extends Module {
       bind[play.Application].to[play.DefaultApplication],
 
       bind[Router].toProvider[RoutesProvider],
+      bind[play.routing.Router].to[JavaRouterAdapter],
       bind[ActorSystem].toProvider[ActorSystemProvider],
       bind[Materializer].toProvider[MaterializerProvider],
-      bind[ExecutionContext].toProvider[ExecutionContextProvider],
-      bind[Executor].toProvider[ExecutionContextProvider],
+      bind[ExecutionContextExecutor].toProvider[ExecutionContextProvider],
+      bind[ExecutionContext].to[ExecutionContextExecutor],
+      bind[Executor].to[ExecutionContextExecutor],
       bind[HttpExecutionContext].toSelf,
 
       bind[CryptoConfig].toProvider[CryptoConfigParser],
@@ -57,7 +60,8 @@ class BuiltinModule extends Module {
     ) ++ dynamicBindings(
         HttpErrorHandler.bindingsFromConfiguration,
         HttpFilters.bindingsFromConfiguration,
-        HttpRequestHandler.bindingsFromConfiguration
+        HttpRequestHandler.bindingsFromConfiguration,
+        ActionCreator.bindingsFromConfiguration
       )
   }
 }

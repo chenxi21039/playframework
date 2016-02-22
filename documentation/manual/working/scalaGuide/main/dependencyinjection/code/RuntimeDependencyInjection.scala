@@ -3,6 +3,7 @@
  */
 package scalaguide.dependencyinjection
 
+import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.test._
 
 object RuntimeDependencyInjection extends PlaySpecification {
@@ -16,8 +17,7 @@ object RuntimeDependencyInjection extends PlaySpecification {
       app.injector.instanceOf[singleton.CurrentSharePrice].get must_== 10
     }
     "support stopping" in {
-      val app = FakeApplication()
-      running(app) {
+      running() { app =>
         app.injector.instanceOf[cleanup.MessageQueueConnection]
       }
       cleanup.MessageQueue.stopped must_== true
@@ -104,7 +104,7 @@ import implemented._
 //#guice-module
 import com.google.inject.AbstractModule
 import com.google.inject.name.Names
-  
+
 class Module extends AbstractModule {
   def configure() = {
 
@@ -128,7 +128,7 @@ import implemented._
 import com.google.inject.AbstractModule
 import com.google.inject.name.Names
 import play.api.{ Configuration, Environment }
-  
+
 class Module(
   environment: Environment,
   configuration: Configuration) extends AbstractModule {
@@ -163,7 +163,7 @@ import implemented._
 //#eager-guice-module
 import com.google.inject.AbstractModule
 import com.google.inject.name.Names
-  
+
 class Module extends AbstractModule {
   def configure() = {
 
@@ -245,4 +245,28 @@ class CustomApplicationLoader extends GuiceApplicationLoader() {
   }
 }
 //#custom-application-loader
+}
+
+package circular {
+
+//#circular
+import javax.inject.Inject
+
+class Foo @Inject() (bar: Bar)
+class Bar @Inject() (baz: Baz)
+class Baz @Inject() (foo: Foo)
+//#circular
+
+}
+
+package circularProvider {
+
+//#circular-provider
+import javax.inject.{ Inject, Provider }
+
+class Foo @Inject() (bar: Bar)
+class Bar @Inject() (baz: Baz)
+class Baz @Inject() (foo: Provider[Foo])
+//#circular-provider
+
 }

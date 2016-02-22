@@ -3,15 +3,14 @@
  */
 package play.db.jpa;
 
-import play.*;
+import play.api.Play;
 import play.libs.F;
 import play.mvc.Http;
 
-import java.util.function.Supplier;
+import javax.persistence.EntityManager;
 import java.util.ArrayDeque;
 import java.util.Deque;
-
-import javax.persistence.*;
+import java.util.function.Supplier;
 
 /**
  * JPA Helpers.
@@ -56,14 +55,13 @@ public class JPA {
     /**
      * Get JPA api for the current play application.
      *
+     * @deprecated as of 2.5.0. Inject a JPAApi instead.
+     *
      * @return the JPAApi
      */
+    @Deprecated
     public static JPAApi jpaApi() {
-        Application app = Play.application();
-        if (app == null) {
-            throw new RuntimeException("No application running");
-        }
-        return app.injector().instanceOf(JPAApi.class);
+        return Play.current().injector().instanceOf(JPAApi.class);
     }
 
     /**
@@ -168,10 +166,13 @@ public class JPA {
     /**
      * Run a block of code in a JPA transaction.
      *
+     * @deprecated as of 2.5.0. Inject a JPAApi instead.
+     *
      * @param block Block of code to execute.
      * @param <T> return type of the block
      * @return the result of the block, having already committed the transaction (or rolled it back in case of exception)
      */
+    @Deprecated
     public static <T> T withTransaction(Supplier<T> block) {
         return jpaApi().withTransaction(block);
     }
@@ -194,14 +195,19 @@ public class JPA {
     /**
      * Run a block of code in a JPA transaction.
      *
+     * @deprecated as of 2.5.0. Inject a JPAApi instead.
+     *
      * @param block Block of code to execute.
      */
+    @Deprecated
     public static void withTransaction(final Runnable block) {
         jpaApi().withTransaction(block);
     }
 
     /**
      * Run a block of code in a JPA transaction.
+     *
+     * @deprecated as of 2.5.0. Inject a JPAApi instead.
      *
      * @param name The persistence unit name
      * @param readOnly Is the transaction read-only?
@@ -210,6 +216,7 @@ public class JPA {
      * @return a future to the result of the block, having already committed the transaction
      *         (or rolled it back in case of exception)
      */
+    @Deprecated
     public static <T> T withTransaction(String name, boolean readOnly, Supplier<T> block) {
         return jpaApi().withTransaction(name, readOnly, block);
     }

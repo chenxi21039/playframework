@@ -7,7 +7,7 @@ import java.util.concurrent.{ CompletableFuture, CompletionStage }
 
 import akka.actor.Status
 import akka.stream.OverflowStrategy
-import akka.stream.scaladsl.{ Keep, Source, Flow, Sink }
+import akka.stream.scaladsl.{ Source, Flow, Sink }
 import play.api.libs.streams.ActorFlow
 import play.api.mvc.WebSocket.MessageFlowTransformer
 import play.api.mvc._
@@ -19,7 +19,6 @@ import scala.compat.java8.FutureConverters
 import com.fasterxml.jackson.databind.JsonNode
 import play.api.libs.concurrent.Akka
 
-import play.api.Play.current
 import play.core.Execution.Implicits.internalContext
 
 /**
@@ -45,8 +44,8 @@ object JavaWebSocket extends JavaHelpers {
         Left(createResult(javaContext, result))
 
       } getOrElse {
-
-        implicit val system = Akka.system
+        val current = play.api.Play.privateMaybeApplication.get
+        implicit val system = current.actorSystem
         implicit val mat = current.materializer
 
         Right(

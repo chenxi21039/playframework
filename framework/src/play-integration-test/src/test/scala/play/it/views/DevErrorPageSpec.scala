@@ -1,3 +1,6 @@
+/*
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ */
 package play.it.views
 
 import play.api.{ Configuration, Mode, Environment }
@@ -15,9 +18,9 @@ object DevErrorPageSpec extends PlaySpecification {
       def sourceName = "someSourceFile"
     }
 
-    "link the error line if play.editor is configured" in new WithApplication(FakeApplication(
-      additionalConfiguration = Map("play.editor" -> "someEditorLinkWith %s:%s")
-    )) {
+    "link the error line if play.editor is configured" in new WithApplication(
+      _.configure("play.editor" -> "someEditorLinkWith %s:%s")
+    ) {
       val result = app.errorHandler.onServerError(FakeRequest(), testExceptionSource)
       contentAsString(result) must contain("""href="someEditorLinkWith someSourceFile:100" """)
     }

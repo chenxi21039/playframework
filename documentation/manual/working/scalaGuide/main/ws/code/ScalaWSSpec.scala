@@ -6,6 +6,10 @@ package scalaguide.ws.scalaws
 import akka.Done
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
+import org.asynchttpclient.AsyncHttpClientConfig
+
+import play.api.{Mode, Environment}
+import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.libs.ws.ahc._
 import play.api.test._
 
@@ -42,7 +46,7 @@ case class Person(name: String, age: Int)
 // #scalaws-person
 
 /**
- * NOTE: the format here is because we cannot define FakeApplication in a new WithServer at once, as we run into a
+ * NOTE: the format here is because we cannot define a fake application in a new WithServer at once, as we run into a
  * JVM implementation issue.
  */
 @RunWith(classOf[JUnitRunner])
@@ -62,16 +66,16 @@ class ScalaWSSpec extends PlaySpecification with Results with AfterAll {
   val system = ActorSystem()
   implicit val materializer = ActorMaterializer()(system)
 
-  def afterAll(): Unit = system.shutdown()
+  def afterAll(): Unit = system.terminate()
 
   def withSimpleServer[T](block: WSClient => T): T = withServer {
     case _ => Action(Ok)
   }(block)
 
   def withServer[T](routes: (String, String) => Handler)(block: WSClient => T): T = {
-    val app = FakeApplication(withRoutes = {
+    val app = GuiceApplicationBuilder().routes({
       case (method, path) => routes(method, path)
-    })
+    }).build()
     running(TestServer(testServerPort, app))(block(app.injector.instanceOf[WSClient]))
   }
 
@@ -400,7 +404,7 @@ class ScalaWSSpec extends PlaySpecification with Results with AfterAll {
         //#scalaws-stream-request
         await(wsResponse).status must_== 200
       }
-    }    
+    }
 
     "work with for comprehensions" in withServer {
       case ("GET", "/one") =>
@@ -449,12 +453,11 @@ class ScalaWSSpec extends PlaySpecification with Results with AfterAll {
     "allow working with clients directly" in withSimpleServer { ws =>
 
       //#implicit-client
-
       implicit val sslClient = AhcWSClient()
       // close with sslClient.close() when finished with client
       val response = WS.clientUrl(url).get()
-
       //#implicit-client
+
       await(response).status must_== OK
 
       {
@@ -492,7 +495,10 @@ class ScalaWSSpec extends PlaySpecification with Results with AfterAll {
 
     "allow programmatic configuration" in new WithApplication() {
 
-      //#programmatic-config
+      // If running in Play, environment should be injected
+      val environment = Environment(new File("."), this.getClass.getClassLoader, Mode.Prod)
+
+      //#ws-custom-client
       import com.typesafe.config.ConfigFactory
       import play.api._
       import play.api.libs.ws._
@@ -502,13 +508,23 @@ class ScalaWSSpec extends PlaySpecification with Results with AfterAll {
           |ws.followRedirects = true
         """.stripMargin))
 
-      // If running in Play, environment should be injected
-      val environment = Environment(new File("."), this.getClass.getClassLoader, Mode.Prod)
-
       val parser = new WSConfigParser(configuration, environment)
       val config = new AhcWSClientConfig(wsClientConfig = parser.parse())
       val builder = new AhcConfigBuilder(config)
-      //#programmatic-config
+      val logging = new AsyncHttpClientConfig.AdditionalChannelInitializer() {
+        override def initChannel(channel: io.netty.channel.Channel): Unit = {
+          channel.pipeline.addFirst("log", new io.netty.handler.logging.LoggingHandler("debug"))
+        }
+      }
+      val ahcBuilder = builder.configure()
+      ahcBuilder.setHttpAdditionalChannelInitializer(logging)
+      val ahcConfig = ahcBuilder.build()
+      val wsClient = new AhcWSClient(ahcConfig)
+      //#ws-custom-client
+
+      //#close-client
+      wsClient.close()
+      //#close-client
 
       ok
     }

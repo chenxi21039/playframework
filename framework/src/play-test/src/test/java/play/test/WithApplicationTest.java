@@ -15,8 +15,7 @@ public class WithApplicationTest extends WithApplication {
     @Test
     public void withApplicationShouldProvideAnApplication() {
         assertNotNull(app);
-        //noinspection deprecation
-        assertNotNull(Play.application());
+        assertTrue(play.api.Play.maybeApplication().nonEmpty());
     }
 
     @Test

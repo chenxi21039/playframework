@@ -1,3 +1,6 @@
+/*
+ * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ */
 package javaguide.tests;
 
 //#content
@@ -6,7 +9,7 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import com.fasterxml.jackson.databind.node.*;
 import org.junit.*;
-import play.api.routing.Router;
+import play.routing.Router;
 import play.libs.Json;
 import play.libs.ws.*;
 import play.routing.RoutingDsl;
