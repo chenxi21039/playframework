@@ -1,5 +1,5 @@
 <!--
-  ~ Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+  ~ Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
   -->
 <!-- The default logback configuration that Play uses in dev mode if no other configuration is provided -->
 <configuration>
@@ -20,12 +20,8 @@
   </appender>
   
   <logger name="play" level="INFO" />
-  <logger name="application" level="INFO" />
+  <logger name="application" level="DEBUG" />
   
-  <!-- Off these ones as they are annoying, and anyway we manage configuration ourselves -->
-  <logger name="com.avaje.ebean.config.PropertyMapLoader" level="OFF" />
-  <logger name="com.avaje.ebeaninternal.server.core.XmlConfigLoader" level="OFF" />
-  <logger name="com.avaje.ebeaninternal.server.lib.BackgroundThread" level="OFF" />
   <logger name="com.gargoylesoftware.htmlunit.javascript" level="OFF" />
 
   <root level="WARN">

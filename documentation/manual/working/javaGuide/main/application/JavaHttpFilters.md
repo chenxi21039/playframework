@@ -1,4 +1,4 @@
-<!--- Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com> -->
+<!--- Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com> -->
 # Filters
 
 Play provides a simple filter API for applying global filters to each request.
@@ -27,7 +27,7 @@ We save a timestamp before invoking the next filter in the chain. Invoking the n
 
 ## Using filters
 
-The simplest way to use a filter is to provide an implementation of the [`HttpFilters`](api/java/play/http/HttpFilters.html) interface in the root package called `Filters`:
+The simplest way to use a filter is to provide an implementation of the [`HttpFilters`](api/java/play/http/HttpFilters.html) interface in the root package called `Filters`. Typically you should extend the [`DefaultHttpFilters`](api/java/play/http/DefaultHttpFilters.html) class and pass your filters to the varargs constructor:
 
 @[filters](code/javaguide/application/httpfilters/Filters.java)
 
@@ -37,13 +37,13 @@ If you want to have different filters in different environments, or would prefer
 
 ## Where do filters fit in?
 
-Filters wrap the action after the action has been looked up by the router.  This means you cannot use a filter to transform a path, method or query parameter to impact the router. However you can direct the request to a different action by invoking that action directly from the filter, though be aware that this will bypass the rest of the filter chain. If you do need to modify the request before the router is invoked, a better way to do this would be to place your logic in `Global.onRouteRequest` instead.
+Filters wrap the action after the action has been looked up by the router.  This means you cannot use a filter to transform a path, method or query parameter to impact the router. However you can direct the request to a different action by invoking that action directly from the filter, though be aware that this will bypass the rest of the filter chain. If you do need to modify the request before the router is invoked, a better way to do this would be to place your logic in [[ a `HttpRequestHandler`|JavaActionCreator#HTTP-request-handlers]] instead.
 
 Since filters are applied after routing is done, it is possible to access routing information from the request, via the `tags` map on the `RequestHeader`. For example, you might want to log the time against the action method. In that case, you might update the filter to look like this:
 
 @[routing-info-access](code/javaguide/application/httpfilters/RoutedLoggingFilter.java)
 
-> Routing tags are a feature of the Play router.  If you use a custom router, or return a custom action in `Global.onRouteRequest`, these parameters may not be available.
+> **Note:** Routing tags are a feature of the Play router. If you use a custom router these parameters may not be available.
 
 ## More powerful filters
 
@@ -53,6 +53,6 @@ Here is the above filter example rewritten as an `EssentialFilter`:
 
 @[essential-filter-example](code/javaguide/application/httpfilters/EssentialLoggingFilter.java)
 
-The key difference here, apart from creating a new `EssentialAction` to wrap the passed in `next` action, is when we invoke next, we get back an [`Accumulator`](api/java/play/libs/streams/Accumulator.html).  You could compose this with an Akka streams Flow using the `through` method some transformations to the stream if you wished.  We then `map` the result of the iteratee and thus handle it.
+The key difference here, apart from creating a new `EssentialAction` to wrap the passed in `next` action, is when we invoke next, we get back an [`Accumulator`](api/java/play/libs/streams/Accumulator.html).  You could compose this with an Akka Streams Flow using the `through` method some transformations to the stream if you wished.  We then `map` the result of the iteratee and thus handle it.
 
-> Although it may seem that there are two different filter APIs, there is only one, `EssentialFilter`.  The simpler `Filter` API in the earlier examples extends `EssentialFilter`, and implements it by creating a new `EssentialAction`.  The passed in callback makes it appear to skip the body parsing by creating a promise for the `Result`, while the body parsing and the rest of the action are executed asynchronously.
+> **Note:** Although it may seem that there are two different filter APIs, there is only one, `EssentialFilter`.  The simpler `Filter` API in the earlier examples extends `EssentialFilter`, and implements it by creating a new `EssentialAction`.  The passed in callback makes it appear to skip the body parsing by creating a promise for the `Result`, while the body parsing and the rest of the action are executed asynchronously.

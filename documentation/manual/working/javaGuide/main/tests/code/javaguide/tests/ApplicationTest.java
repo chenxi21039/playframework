@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package javaguide.tests;
 
@@ -58,6 +58,7 @@ public class ApplicationTest extends WithApplication {
   //#test-template
   @Test
   public void renderTemplate() {
+    //###replace:     Content html = views.html.index.render("Welcome to Play!");
     Content html = javaguide.tests.html.index.render("Welcome to Play!");
     assertEquals("text/html", html.contentType());
     assertTrue(contentAsString(html).contains("Welcome to Play!"));

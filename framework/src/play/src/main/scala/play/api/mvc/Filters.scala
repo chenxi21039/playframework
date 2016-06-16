@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.api.mvc
 
@@ -104,13 +104,6 @@ object Filters {
   def apply(h: EssentialAction, filters: EssentialFilter*) = h match {
     case a: EssentialAction => FilterChain(a, filters.toList)
     case h => h
-  }
-}
-
-@deprecated("Use dependency injection", "2.5.0")
-class WithFilters(filters: EssentialFilter*) extends GlobalSettings {
-  override def doFilter(a: EssentialAction): EssentialAction = {
-    Filters(super.doFilter(a), filters: _*)
   }
 }
 

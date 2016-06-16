@@ -1,11 +1,9 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.routing;
 
 import org.junit.Test;
-import play.routing.Router;
-import play.libs.F;
 import play.mvc.PathBindable;
 import play.mvc.Result;
 import play.mvc.Results;

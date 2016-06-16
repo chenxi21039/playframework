@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package javaguide.akka.inject;
 import javaguide.akka.ConfiguredActorProtocol;
@@ -17,8 +17,12 @@ import static akka.pattern.Patterns.ask;
 
 public class Application extends Controller {
 
-    @Inject @Named("configured-actor")
-    ActorRef configuredActor;
+    private ActorRef configuredActor;
+
+    @Inject
+    public Application(@Named("configured-actor") ActorRef configuredActor) {
+       this.configuredActor = configuredActor;
+    }
 
     public CompletionStage<Result> getConfig() {
         return FutureConverters.toJava(ask(configuredActor,

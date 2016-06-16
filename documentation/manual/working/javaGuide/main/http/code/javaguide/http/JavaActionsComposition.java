@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package javaguide.http;
 
@@ -15,9 +15,6 @@ import java.lang.annotation.Target;
 
 import java.util.concurrent.CompletionStage;
 
-/**
- *
- */
 public class JavaActionsComposition extends Controller {
 
     // #verbose-action
@@ -92,4 +89,11 @@ public class JavaActionsComposition extends Controller {
     }
     // #pass-arg-action-index
 
+    // #annotated-controller
+    @Security.Authenticated
+    public class Admin extends Controller {
+        /// ###insert: ...
+
+    }
+    // #annotated-controller
 }

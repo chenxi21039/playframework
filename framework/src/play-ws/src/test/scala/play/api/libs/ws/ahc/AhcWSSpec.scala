@@ -1,24 +1,27 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.api.libs.ws.ahc
 
+import java.util
+
 import akka.util.{ ByteString, Timeout }
-import io.netty.handler.codec.http.{ DefaultHttpHeaders, HttpHeaders }
+import io.netty.handler.codec.http.DefaultHttpHeaders
 import org.asynchttpclient.Realm.AuthScheme
 import org.asynchttpclient.cookie.{ Cookie => AHCCookie }
-import org.asynchttpclient.{ AsyncHttpClient, DefaultAsyncHttpClientConfig, Param, Response => AHCResponse, Request => AHCRequest }
-import org.asynchttpclient.proxy.ProxyServer
+import org.asynchttpclient.{ AsyncHttpClient, DefaultAsyncHttpClientConfig, Param, Request => AHCRequest, Response => AHCResponse }
 import org.specs2.mock.Mockito
+import play.api.Play
 import play.api.inject.guice.GuiceApplicationBuilder
-import scala.concurrent.duration._
-
-import play.api.mvc._
-
-import java.util
+import play.api.libs.oauth.{ ConsumerKey, OAuthCalculator, RequestToken }
 import play.api.libs.ws._
+import play.api.mvc._
+import play.api.routing.sird._
 import play.api.test._
-import akka.util.ByteString
+import play.core.server.Server
+
+import scala.concurrent.{ Await, Future }
+import scala.concurrent.duration._
 
 object AhcWSSpec extends PlaySpecification with Mockito {
 
@@ -110,54 +113,101 @@ object AhcWSSpec extends PlaySpecification with Mockito {
     "not make Content-Type header if there is Content-Type in headers already" in new WithApplication {
       import scala.collection.JavaConverters._
       val req: AHCRequest = WS.url("http://playframework.com/")
-        .withHeaders("Content-Type" -> "fake/contenttype; charset=utf-8").withBody(<aaa>value1</aaa>).asInstanceOf[AhcWSRequest]
+        .withHeaders("content-type" -> "fake/contenttype; charset=utf-8")
+        .withBody(<aaa>value1</aaa>)
+        .asInstanceOf[AhcWSRequest]
         .buildRequest()
-      req.getHeaders.get("Content-Type") must_== ("fake/contenttype; charset=utf-8")
-    }
-
-    "Add charset=utf-8 to the Content-Type header if it's manually adding but lacking charset" in new WithApplication {
-      import scala.collection.JavaConverters._
-      val req: AHCRequest = WS.url("http://playframework.com/")
-        .withHeaders("Content-Type" -> "text/plain").withBody(<aaa>value1</aaa>).asInstanceOf[AhcWSRequest]
-        .buildRequest()
-      req.getHeaders.get("Content-Type") must_== ("text/plain; charset=utf-8")
+      req.getHeaders.getAll("Content-Type").asScala must_== Seq("fake/contenttype; charset=utf-8")
     }
 
     "Have form params on POST of content type application/x-www-form-urlencoded" in new WithApplication {
-      import scala.collection.JavaConverters._
-      val req: AHCRequest = WS.url("http://playframework.com/").withBody(Map("param1" -> Seq("value1"))).asInstanceOf[AhcWSRequest]
+      val req: AHCRequest = WS.url("http://playframework.com/")
+        .withBody(Map("param1" -> Seq("value1")))
+        .asInstanceOf[AhcWSRequest]
         .buildRequest()
-      req.getFormParams.asScala must containTheSameElementsAs(List(new Param("param1", "value1")))
+      (new String(req.getByteData, "UTF-8")) must_== ("param1=value1")
     }
 
     "Have form body on POST of content type text/plain" in new WithApplication {
       val formEncoding = java.net.URLEncoder.encode("param1=value1", "UTF-8")
-      val req: AHCRequest = WS.url("http://playframework.com/").withHeaders("Content-Type" -> "text/plain").withBody("HELLO WORLD").asInstanceOf[AhcWSRequest]
+      val req: AHCRequest = WS.url("http://playframework.com/")
+        .withHeaders("Content-Type" -> "text/plain")
+        .withBody("HELLO WORLD")
+        .asInstanceOf[AhcWSRequest]
         .buildRequest()
+
       (new String(req.getByteData, "UTF-8")) must be_==("HELLO WORLD")
+      val headers = req.getHeaders
+      headers.get("Content-Length") must beNull
     }
 
-    "Keep the charset if it has been set manually with a charset" in new WithApplication {
-      import scala.collection.JavaConverters._
-      val req: AHCRequest = WS.url("http://playframework.com/").withHeaders("Content-Type" -> "text/plain; charset=US-ASCII").withBody("HELLO WORLD").asInstanceOf[AhcWSRequest]
+    "Have form body on POST of content type application/x-www-form-urlencoded explicitly set" in new WithApplication {
+      val req: AHCRequest = WS.url("http://playframework.com/")
+        .withHeaders("Content-Type" -> "application/x-www-form-urlencoded") // set content type by hand
+        .withBody("HELLO WORLD") // and body is set to string (see #5221)
+        .asInstanceOf[AhcWSRequest]
         .buildRequest()
-      req.getHeaders.get("Content-Type") must_== ("text/plain; charset=US-ASCII")
+      (new String(req.getByteData, "UTF-8")) must be_==("HELLO WORLD") // should result in byte data.
     }
 
-    "Only send first content type header and add charset=utf-8 to the Content-Type header if it's manually adding but lacking charset" in new WithApplication {
+    "Have form params on POST of content type application/x-www-form-urlencoded when signed" in new WithApplication {
       import scala.collection.JavaConverters._
-      val req: AHCRequest = WS.url("http://playframework.com/").withHeaders("Content-Type" -> "application/json").withHeaders("Content-Type" -> "application/xml")
-        .withBody("HELLO WORLD").asInstanceOf[AhcWSRequest]
+      val consumerKey = ConsumerKey("key", "secret")
+      val requestToken = RequestToken("token", "secret")
+      val calc = OAuthCalculator(consumerKey, requestToken)
+      val req: AHCRequest = WS.url("http://playframework.com/").withBody(Map("param1" -> Seq("value1")))
+        .sign(calc)
+        .asInstanceOf[AhcWSRequest]
         .buildRequest()
-      req.getHeaders.get("Content-Type") must_== ("application/json; charset=utf-8")
+      // Note we use getFormParams instead of getByteData here.
+      req.getFormParams.asScala must containTheSameElementsAs(List(new org.asynchttpclient.Param("param1", "value1")))
+      req.getByteData must beNull // should NOT result in byte data.
+
+      val headers = req.getHeaders
+      headers.get("Content-Length") must beNull
     }
 
-    "Only send first content type header and keep the charset if it has been set manually with a charset" in new WithApplication {
+    "Not remove a user defined content length header" in new WithApplication {
       import scala.collection.JavaConverters._
-      val req: AHCRequest = WS.url("http://playframework.com/").withHeaders("Content-Type" -> "application/json; charset=US-ASCII").withHeaders("Content-Type" -> "application/xml")
-        .withBody("HELLO WORLD").asInstanceOf[AhcWSRequest]
+      val consumerKey = ConsumerKey("key", "secret")
+      val requestToken = RequestToken("token", "secret")
+      val calc = OAuthCalculator(consumerKey, requestToken)
+      val req: AHCRequest = WS.url("http://playframework.com/").withBody(Map("param1" -> Seq("value1")))
+        .withHeaders("Content-Length" -> "9001") // add a meaningless content length here...
+        .asInstanceOf[AhcWSRequest]
         .buildRequest()
-      req.getHeaders.get("Content-Type") must_== ("application/json; charset=US-ASCII")
+
+      (new String(req.getByteData, "UTF-8")) must be_==("param1=value1") // should result in byte data.
+
+      val headers = req.getHeaders
+      headers.get("Content-Length") must_== ("9001")
+    }
+
+    "Remove a user defined content length header if we are parsing body explicitly when signed" in new WithApplication {
+      import scala.collection.JavaConverters._
+      val consumerKey = ConsumerKey("key", "secret")
+      val requestToken = RequestToken("token", "secret")
+      val calc = OAuthCalculator(consumerKey, requestToken)
+      val req: AHCRequest = WS.url("http://playframework.com/").withBody(Map("param1" -> Seq("value1")))
+        .withHeaders("Content-Length" -> "9001") // add a meaningless content length here...
+        .sign(calc) // this is signed, so content length is no longer valid per #5221
+        .asInstanceOf[AhcWSRequest]
+        .buildRequest()
+
+      val headers = req.getHeaders
+      req.getByteData must beNull // should NOT result in byte data.
+      req.getFormParams.asScala must containTheSameElementsAs(List(new org.asynchttpclient.Param("param1", "value1")))
+      headers.get("Content-Length") must beNull // no content length!
+    }
+
+    "Verify Content-Type header is passed through correctly" in new WithApplication {
+      import scala.collection.JavaConverters._
+      val req: AHCRequest = WS.url("http://playframework.com/")
+        .withHeaders("Content-Type" -> "text/plain; charset=US-ASCII")
+        .withBody("HELLO WORLD")
+        .asInstanceOf[AhcWSRequest]
+        .buildRequest()
+      req.getHeaders.getAll("Content-Type").asScala must_== Seq("text/plain; charset=US-ASCII")
     }
 
     "POST binary data as is" in new WithApplication {
@@ -375,6 +425,70 @@ object AhcWSSpec extends PlaySpecification with Mockito {
     }
   }
 
+  "withRequestFilter" should {
+
+    class CallbackRequestFilter(callList: scala.collection.mutable.Buffer[Int], value: Int) extends WSRequestFilter {
+      override def apply(executor: WSRequestExecutor): WSRequestExecutor = {
+        callList.append(value)
+        executor
+      }
+    }
+
+    class HeaderAppendingFilter(key: String, value: String) extends WSRequestFilter {
+      override def apply(next: WSRequestExecutor): WSRequestExecutor = {
+        new WSRequestExecutor {
+          override def execute(request: WSRequest): Future[WSResponse] = {
+            next.execute(request.withHeaders((key, value)))
+          }
+        }
+      }
+    }
+
+    "work with one request filter" in new WithServer() {
+      val client = app.injector.instanceOf(classOf[WSClient])
+      val callList = scala.collection.mutable.ArrayBuffer[Int]()
+      val responseFuture = client.url(s"http://example.com:$testServerPort")
+        .withRequestFilter(new CallbackRequestFilter(callList, 1))
+        .get()
+      callList must contain(1)
+    }
+
+    "work with three request filter" in new WithServer() {
+      val client = app.injector.instanceOf(classOf[WSClient])
+      val callList = scala.collection.mutable.ArrayBuffer[Int]()
+      val responseFuture = client.url(s"http://localhost:${testServerPort}")
+        .withRequestFilter(new CallbackRequestFilter(callList, 1))
+        .withRequestFilter(new CallbackRequestFilter(callList, 2))
+        .withRequestFilter(new CallbackRequestFilter(callList, 3))
+        .get()
+      callList must containTheSameElementsAs(Seq(1, 2, 3))
+    }
+
+    "should allow filters to modify the request" in {
+      val appendedHeader = "key"
+      val appendedHeaderValue = "value"
+
+      Server.withRouter() {
+        case play.api.routing.sird.GET(p"/") => Action {
+          request =>
+            request.headers.get(appendedHeader) match {
+              case Some(appendedHeaderValue) => Results.Ok
+              case _ => Results.Forbidden
+            }
+        }
+      } { implicit port =>
+        implicit val materializer = Play.current.materializer
+        WsTestClient.withClient { client =>
+          val response = Await.result(
+            client.url("/")
+              .withRequestFilter(new HeaderAppendingFilter(appendedHeader, appendedHeaderValue))
+              .get(), 5.seconds)
+          response.status must beEqualTo(200)
+        }
+      }
+    }
+  }
+
   "Ahc WS Config" should {
     "support overriding secure default values" in {
       val ahcConfig = new AhcConfigBuilder().modifyUnderlying { builder =>
@@ -390,3 +504,4 @@ object AhcWSSpec extends PlaySpecification with Mockito {
   }
 
 }
+

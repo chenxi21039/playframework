@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.sbt
 
@@ -46,6 +46,8 @@ object PlayImport {
   val cache = component("play-cache")
 
   val json = component("play-json")
+
+  val guiceSupport = component("play-guice")
 
   val ws = component("play-ws")
 

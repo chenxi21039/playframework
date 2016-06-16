@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.core.server.common
 
@@ -360,6 +360,21 @@ class ForwardedHeaderHandlerSpec extends Specification {
         """
           |X-Forwarded-For: ,,192.0.2.43
         """.stripMargin)) mustEqual ConnectionInfo(addr("192.0.2.43"), false)
+    }
+
+    "return the first address if all addresses are trusted with RFC 7239" in {
+      handler(version("rfc7239") ++ trustedProxies("192.168.1.1/24", "127.0.0.1")).remoteConnection(localhost, false, headers(
+        """
+          |Forwarded: for=192.168.1.12, for=192.168.1.10, for=127.0.0.1
+        """.stripMargin)) mustEqual ConnectionInfo(addr("192.168.1.12"), false)
+    }
+
+    "return the first address if all addresses are trusted with X-Forwarded-For" in {
+      handler(version("x-forwarded") ++ trustedProxies("192.168.1.1/24", "127.0.0.1")).remoteConnection(localhost, false, headers(
+        """
+          |X-Forwarded-For: 192.168.1.12, "192.168.1.10", 127.0.0.1
+          |X-Forwarded-Proto: http, http, http
+        """.stripMargin)) mustEqual ConnectionInfo(addr("192.168.1.12"), false)
     }
 
   }

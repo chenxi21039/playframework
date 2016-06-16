@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 
 package play.libs.ws.ahc;
@@ -9,11 +9,13 @@ import akka.stream.javadsl.AsPublisher;
 import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
 import akka.util.ByteString;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.HttpHeaders;
 import org.asynchttpclient.*;
 import org.asynchttpclient.oauth.OAuthSignatureCalculator;
+import org.asynchttpclient.request.body.generator.ByteArrayBodyGenerator;
 import org.asynchttpclient.request.body.generator.FileBodyGenerator;
 import org.asynchttpclient.request.body.generator.InputStreamBodyGenerator;
 import org.asynchttpclient.util.HttpUtils;
@@ -23,11 +25,12 @@ import play.core.parsers.FormUrlEncodedParser;
 import play.libs.Json;
 import play.libs.oauth.OAuth;
 import play.libs.ws.*;
+import play.mvc.Http;
+import play.mvc.MultipartFormatter;
 import scala.compat.java8.FutureConverters;
 
 import java.io.File;
 import java.io.InputStream;
-import java.io.UnsupportedEncodingException;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.nio.ByteBuffer;
@@ -44,8 +47,8 @@ public class AhcWSRequest implements WSRequest {
     private final String url;
     private String method = "GET";
     private Object body = null;
-    private Map<String, Collection<String>> headers = new HashMap<String, Collection<String>>();
-    private Map<String, List<String>> queryParameters = new HashMap<String, List<String>>();
+    private final Map<String, List<String>> headers = new HashMap<>();
+    private final Map<String, List<String>> queryParameters = new HashMap<>();
 
     private String username;
     private String password;
@@ -58,6 +61,8 @@ public class AhcWSRequest implements WSRequest {
     private int timeout = 0;
     private Boolean followRedirects = null;
     private String virtualHost = null;
+
+    private final ArrayList<WSRequestFilter> filters = new ArrayList<>();
 
     public AhcWSRequest(AhcWSClient client, String url, Materializer materializer) {
         this.client = client;
@@ -83,21 +88,14 @@ public class AhcWSRequest implements WSRequest {
      */
     @Override
     public AhcWSRequest setHeader(String name, String value) {
-        if (headers.containsKey(name)) {
-            Collection<String> values = headers.get(name);
-            values.add(value);
-        } else {
-            List<String> values = new ArrayList<String>();
-            values.add(value);
-            headers.put(name, values);
-        }
+        addValueTo(headers, name, value);
         return this;
     }
 
     /**
      * Sets a query string
      *
-     * @param query
+     * @param query the query string
      */
     @Override
     public WSRequest setQueryString(String query) {
@@ -106,7 +104,7 @@ public class AhcWSRequest implements WSRequest {
             String[] keyValue = param.split("=");
             if (keyValue.length > 2) {
                 throw new RuntimeException(new MalformedURLException("QueryString parameter should not have more than 2 = per part"));
-            } else if (keyValue.length >= 2) {
+            } else if (keyValue.length == 2) {
                 this.setQueryParameter(keyValue[0], keyValue[1]);
             } else if (keyValue.length == 1 && param.charAt(0) != '=') {
                 this.setQueryParameter(keyValue[0], null);
@@ -119,14 +117,7 @@ public class AhcWSRequest implements WSRequest {
 
     @Override
     public WSRequest setQueryParameter(String name, String value) {
-        if (queryParameters.containsKey(name)) {
-            Collection<String> values = queryParameters.get(name);
-            values.add(value);
-        } else {
-            List<String> values = new ArrayList<String>();
-            values.add(value);
-            queryParameters.put(name, values);
-        }
+        addValueTo(queryParameters, name, value);
         return this;
     }
 
@@ -245,12 +236,12 @@ public class AhcWSRequest implements WSRequest {
 
     @Override
     public Map<String, Collection<String>> getHeaders() {
-        return new HashMap<String, Collection<String>>(this.headers);
+        return new HashMap<>(this.headers);
     }
 
     @Override
     public Map<String, Collection<String>> getQueryParameters() {
-        return new HashMap<String, Collection<String>>(this.queryParameters);
+        return new HashMap<>(this.queryParameters);
     }
 
     @Override
@@ -325,6 +316,12 @@ public class AhcWSRequest implements WSRequest {
         return execute();
     }
 
+    @Override
+    public CompletionStage<WSResponse> patch(Source<? super Http.MultipartFormData.Part<Source<ByteString, ?>>, ?> body) {
+        setMethod("PATCH");
+        return executeWithBody(body);
+    }
+
     //-------------------------------------------------------------------------
     // POST
     //-------------------------------------------------------------------------
@@ -355,6 +352,12 @@ public class AhcWSRequest implements WSRequest {
         setMethod("POST");
         setBody(body);
         return execute();
+    }
+
+    @Override
+    public CompletionStage<WSResponse> post(Source<? super Http.MultipartFormData.Part<Source<ByteString, ?>>, ?> body) {
+        setMethod("POST");
+        return executeWithBody(body);
     }
 
     //-------------------------------------------------------------------------
@@ -390,6 +393,12 @@ public class AhcWSRequest implements WSRequest {
     }
 
     @Override
+    public CompletionStage<WSResponse> put(Source<? super Http.MultipartFormData.Part<Source<ByteString, ?>>, ?> body) {
+        setMethod("PUT");
+        return executeWithBody(body);
+    }
+
+    @Override
     public CompletionStage<WSResponse> delete() {
         return execute("DELETE");
     }
@@ -412,15 +421,34 @@ public class AhcWSRequest implements WSRequest {
 
     @Override
     public CompletionStage<WSResponse> execute() {
-        Request request = buildRequest();
-        return execute(request);
+        WSRequestExecutor executor = foldRight(r -> {
+            AhcWSRequest ahcWsRequest = (AhcWSRequest) r;
+            Request ahcRequest = ahcWsRequest.buildRequest();
+            return ahcWsRequest.execute(ahcRequest);
+        }, filters.iterator());
+        return executor.apply(this);
+    }
+
+
+    private CompletionStage<WSResponse> executeWithBody(Source<? super Http.MultipartFormData.Part<Source<ByteString, ?>>, ?> body) {
+        String boundary = MultipartFormatter.randomBoundary();
+        Source<ByteString, ?> innerBody = MultipartFormatter.transform(body, boundary);
+        setBody(innerBody);
+        setHeader("Content-Type", MultipartFormatter.boundaryToContentType(boundary));
+        return execute();
     }
 
     @Override
     public CompletionStage<StreamedResponse> stream() {
-    	AsyncHttpClient asyncClient = (AsyncHttpClient) client.getUnderlying();
-    	Request request = buildRequest();
-    	return StreamedResponse.from(Streamed.execute(asyncClient, request));
+        AsyncHttpClient asyncClient = (AsyncHttpClient) client.getUnderlying();
+        Request request = buildRequest();
+        return StreamedResponse.from(Streamed.execute(asyncClient, request));
+    }
+
+    @Override
+    public WSRequest withRequestFilter(WSRequestFilter filter) {
+        filters.add(filter);
+        return this;
     }
 
     Request buildRequest() {
@@ -443,31 +471,27 @@ public class AhcWSRequest implements WSRequest {
             if (contentType == null) {
                 contentType = "text/plain";
             }
-            Charset charset = HttpUtils.parseCharset(contentType);
-            List<String> contentTypeList = new ArrayList<String>();
-            if (charset == null) {
-                charset = StandardCharsets.UTF_8;
-                contentTypeList.add(contentType + "; charset=" + charset.name().toLowerCase());
-            } else {
-                contentTypeList.add(contentType);
-            }
+
             // Always replace the content type header to make sure exactly one exists
+            List<String> contentTypeList = new ArrayList<>();
+            contentTypeList.add(contentType);
             possiblyModifiedHeaders.set(HttpHeaders.Names.CONTENT_TYPE, contentTypeList);
 
-            byte[] bodyBytes;
-            bodyBytes = stringBody.getBytes(charset);
+            // Find a charset and try to pull a string out of it...
+            Charset charset = HttpUtils.parseCharset(contentType);
+            if (charset == null) {
+                charset = StandardCharsets.UTF_8;
+            }
+            byte[] bodyBytes = stringBody.getBytes(charset);
 
             // If using a POST with OAuth signing, the builder looks at
             // getFormParams() rather than getBody() and constructs the signature
             // based on the form params.
-            if (contentType.equals(HttpHeaders.Values.APPLICATION_X_WWW_FORM_URLENCODED)) {
+            if (contentType.equals(HttpHeaders.Values.APPLICATION_X_WWW_FORM_URLENCODED) && calculator != null) {
+                possiblyModifiedHeaders.remove(HttpHeaders.Names.CONTENT_LENGTH);
+
                 Map<String, List<String>> stringListMap = FormUrlEncodedParser.parseAsJava(stringBody, "utf-8");
-                for (String key : stringListMap.keySet()) {
-                    List<String> values = stringListMap.get(key);
-                    for (String value : values) {
-                        builder.addFormParam(key, value);
-                    }
-                }
+                stringListMap.forEach((key, values) -> values.forEach(value -> builder.addFormParam(key, value)));
             } else {
                 builder.setBody(stringBody);
             }
@@ -475,19 +499,16 @@ public class AhcWSRequest implements WSRequest {
             builder.setCharset(charset);
         } else if (body instanceof JsonNode) {
             JsonNode jsonBody = (JsonNode) body;
-            List<String> contentType = new ArrayList<String>();
-            contentType.add("application/json; charset=utf-8");
+            List<String> contentType = new ArrayList<>();
+            contentType.add("application/json");
             possiblyModifiedHeaders.set(HttpHeaders.Names.CONTENT_TYPE, contentType);
-            String bodyStr = Json.stringify(jsonBody);
             byte[] bodyBytes;
             try {
-                bodyBytes = bodyStr.getBytes("utf-8");
-            } catch (UnsupportedEncodingException e) {
+                bodyBytes = Json.mapper().writeValueAsBytes(jsonBody);
+            } catch (JsonProcessingException e) {
                 throw new RuntimeException(e);
             }
-
-            builder.setBody(bodyStr);
-            builder.setCharset(StandardCharsets.UTF_8);
+            builder.setBody(new ByteArrayBodyGenerator(bodyBytes));
         } else if (body instanceof File) {
             File fileBody = (File) body;
             FileBodyGenerator bodyGenerator = new FileBodyGenerator(fileBody);
@@ -497,10 +518,18 @@ public class AhcWSRequest implements WSRequest {
             InputStreamBodyGenerator bodyGenerator = new InputStreamBodyGenerator(inputStreamBody);
             builder.setBody(bodyGenerator);
         } else if (body instanceof Source) {
+            // If the body has a streaming interface it should be up to the user to provide a manual Content-Length
+            // else every content would be Transfer-Encoding: chunked
+            // If the Content-Length is -1 Async-Http-Client sets a Transfer-Encoding: chunked
+            // If the Content-Length is great than -1 Async-Http-Client will use the correct Content-Length
+            long contentLength = Optional.ofNullable(possiblyModifiedHeaders.get(HttpHeaders.Names.CONTENT_LENGTH))
+                    .map(Long::valueOf).orElse(-1L);
+            possiblyModifiedHeaders.remove(HttpHeaders.Names.CONTENT_LENGTH);
+
             Source<ByteString,?> sourceBody = (Source<ByteString,?>) body;
             Publisher<ByteBuffer> publisher = sourceBody.map(ByteString::toByteBuffer)
                 .runWith(Sink.asPublisher(AsPublisher.WITHOUT_FANOUT), materializer);
-            builder.setBody(publisher);
+            builder.setBody(publisher, contentLength);
         } else {
             throw new IllegalStateException("Impossible body: " + body);
         }
@@ -534,16 +563,26 @@ public class AhcWSRequest implements WSRequest {
         return builder.build();
     }
 
+    private void addValueTo(Map<String, List<String>> map, String name, String value) {
+        if (map.containsKey(name)) {
+            Collection<String> values = map.get(name);
+            values.add(value);
+        } else {
+            List<String> values = new ArrayList<>();
+            values.add(value);
+            map.put(name, values);
+        }
+    }
+
     private CompletionStage<WSResponse> execute(Request request) {
 
-        final scala.concurrent.Promise<WSResponse> scalaPromise = scala.concurrent.Promise$.MODULE$.<WSResponse>apply();
+        final scala.concurrent.Promise<WSResponse> scalaPromise = scala.concurrent.Promise$.MODULE$.apply();
         try {
             AsyncHttpClient asyncHttpClient = (AsyncHttpClient) client.getUnderlying();
             asyncHttpClient.executeRequest(request, new AsyncCompletionHandler<Response>() {
                 @Override
                 public Response onCompleted(Response response) {
-                    final Response ahcResponse = response;
-                    scalaPromise.success(new AhcWSResponse(ahcResponse));
+                    scalaPromise.success(new AhcWSResponse(response));
                     return response;
                 }
 
@@ -556,6 +595,15 @@ public class AhcWSRequest implements WSRequest {
             scalaPromise.failure(exception);
         }
         return FutureConverters.toJava(scalaPromise.future());
+    }
+
+    private <U> WSRequestExecutor foldRight(WSRequestExecutor executor, Iterator<WSRequestFilter> iterator) {
+        if (! iterator.hasNext()) {
+            return executor;
+        }
+
+        WSRequestFilter next = iterator.next();
+        return foldRight(next.apply(executor), iterator);
     }
 
     Realm auth(String username, String password, WSAuthScheme scheme) {

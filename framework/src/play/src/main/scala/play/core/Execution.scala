@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.core
 
@@ -13,16 +13,18 @@ import scala.concurrent.{ ExecutionContext, ExecutionContextExecutor }
 private[play] object Execution {
 
   def internalContext: ExecutionContextExecutor = {
-    val appOrNull: Application = Play._currentApp
-    appOrNull match {
-      case null => common
-      case app: Application => app.actorSystem.dispatcher
+    Play.privateMaybeApplication match {
+      case None => common
+      case Some(app) => app.actorSystem.dispatcher
     }
   }
+
+  def trampoline = play.api.libs.streams.Execution.trampoline
 
   object Implicits {
 
     implicit def internalContext = Execution.internalContext
+    implicit def trampoline = play.api.libs.streams.Execution.trampoline
 
   }
 

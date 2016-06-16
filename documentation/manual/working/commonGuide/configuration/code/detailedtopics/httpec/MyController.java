@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package detailedtopics.httpec;
 
@@ -12,8 +12,14 @@ import javax.inject.Inject;
 import java.util.concurrent.CompletionStage;
 
 public class MyController extends Controller {
-    @Inject HttpExecutionContext ec;
-    @Inject WSClient ws;
+    private HttpExecutionContext ec;
+    private WSClient ws;
+
+    @Inject
+    public MyController(HttpExecutionContext ec, WSClient ws) {
+        this.ec = ec;
+        this.ws = ws;
+    }
 
     public CompletionStage<Result> index() {
         String checkUrl = request().getQueryString("url");

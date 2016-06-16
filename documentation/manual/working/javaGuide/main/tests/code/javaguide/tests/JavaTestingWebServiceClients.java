@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package javaguide.tests;
 
@@ -53,9 +53,8 @@ public class JavaTestingWebServiceClients {
         Server server = Server.forRouter(router);
 
         WSClient ws = WS.newClient(server.httpPort());
-        GitHubClient client = new GitHubClient();
+        GitHubClient client = new GitHubClient(ws);
         client.baseUrl = "";
-        client.ws = ws;
 
         try {
             List<String> repos = client.getRepositories().toCompletableFuture().get(10, TimeUnit.SECONDS);

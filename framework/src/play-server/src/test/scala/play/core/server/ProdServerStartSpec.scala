@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.core.server
 
@@ -83,7 +83,7 @@ object ProdServerStartSpec extends Specification {
 
   "ProdServerStartSpec.start" should {
 
-    "read settings, create custom ServerProvider, create a pid file, start the the server and register shutdown hooks" in withTempDir { tempDir =>
+    "read settings, create custom ServerProvider, create a pid file, start the server and register shutdown hooks" in withTempDir { tempDir =>
       val process = new FakeServerProcess(
         args = Seq(tempDir.getAbsolutePath),
         propertyMap = Map("play.server.provider" -> classOf[FakeServerProvider].getName),

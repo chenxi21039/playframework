@@ -1,4 +1,4 @@
-<!--- Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com> -->
+<!--- Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com> -->
 # Configuring logging
 
 Play uses SLF4J for logging, backed by [Logback](http://logback.qos.ch/) as its default logging engine.  See the [Logback documentation](http://logback.qos.ch/manual/configuration.html) for details on configuration.
@@ -15,6 +15,12 @@ A few things to note about this configuration:
 * The file logger logs full exception stack traces, while the console logger only logs 10 lines of an exception stack trace.
 * Play uses ANSI color codes by default in level messages.
 * Play puts both the console and the file logger behind the logback [AsyncAppender](http://logback.qos.ch/manual/appenders.html#AsyncAppender).  For details on the performance implications on this, see this [blog post](https://blog.takipi.com/how-to-instantly-improve-your-java-logging-with-7-logback-tweaks/).
+
+## Using a custom application loader
+
+Note that when using a custom application loader that does not extend the default `GuiceApplicationLoader` (for example when using [[compile-time dependency injection|ScalaCompileTimeDependencyInjection]]), the `LoggerConfigurator` needs to be manually invoked to pick up your custom configuration. You can do this with code like the following:
+
+@[basicextended](../../scalaGuide/main/dependencyinjection/code/CompileTimeDependencyInjection.scala)
 
 ## Custom configuration
 
@@ -95,11 +101,30 @@ Here's an example of configuration that uses a rolling file appender, as well as
 ```
 
 This demonstrates a few useful features:
+
 - It uses `RollingFileAppender` which can help manage growing log files.
 - It writes log files to a directory external to the application so they aren't affected by upgrades, etc.
 - The `FILE` appender uses an expanded message format that can be parsed by third party log analytics providers such as Sumo Logic.
 - The `access` logger is routed to a separate log file using the `ACCESS_FILE_APPENDER`.
-- All loggers are set to a threshold of `INFO` which is a common choice for production logging.  
+- All loggers are set to a threshold of `INFO` which is a common choice for production logging.
+
+## Including Properties
+
+By default, only the property `application.home` is exported to the logging framework, meaning that files can be referenced relative to the Play application:
+
+```
+ <file>${application.home:-}/example.log</file>
+```
+
+If you want to reference properties that are defined in the `application.conf` file, you can add `play.logger.includeConfigProperties=true` to your application.conf file.  When the application starts, all properties defined in configuration will be available to the logger:
+
+```
+<appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+        <pattern>context = ${my.property.defined.in.application.conf} %message%n</pattern>
+    </encoder>
+</appender>
+```
 
 ## Akka logging configuration
 
@@ -144,39 +169,7 @@ play.logger.configurator=Log4J2LoggerConfigurator
 
 And then extend LoggerConfigurator with any customizations:
 
-```scala
-import java.io.File
-import java.net.URL
+@[log4j2-import](code/Log4j2LoggerConfigurator.scala)
 
-import org.apache.logging.log4j.LogManager
-import org.apache.logging.log4j.core._
-import org.apache.logging.log4j.core.config.Configurator
+@[log4j2-class](code/Log4j2LoggerConfigurator.scala)
 
-import play.api.{Mode, Environment, LoggerConfigurator}
-
-class Log4J2LoggerConfigurator extends LoggerConfigurator {
-
-  override def init(rootPath: File, mode: Mode.Mode): Unit = {
-    val properties = Map("application.home" -> rootPath.getAbsolutePath)
-    val resourceName = if (mode == Mode.Dev) "log4j2-dev.xml" else "log4j2.xml"
-    val resourceUrl = Option(this.getClass.getClassLoader.getResource(resourceName))
-    configure(properties, resourceUrl)
-  }
-
-  override def shutdown(): Unit = {
-    val context = LogManager.getContext().asInstanceOf[LoggerContext]
-    Configurator.shutdown(context)
-  }
-
-  override def configure(env: Environment): Unit = {
-    val properties = Map("application.home" -> env.rootPath.getAbsolutePath)
-    val resourceUrl = env.resource("log4j2.xml")
-    configure(properties, resourceUrl)
-  }
-
-  override def configure(properties: Map[String, String], config: Option[URL]): Unit = {
-    val context =  LogManager.getContext(false).asInstanceOf[LoggerContext]
-    context.setConfigLocation(config.get.toURI)
-  }
-}
-```

@@ -1,17 +1,16 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.api.db
 
 import java.sql.{ Connection, Driver, DriverManager }
 import javax.sql.DataSource
 
-import org.jdbcdslog.LogSqlDataSource
 import play.utils.{ ProxyDriver, Reflect }
 
 import com.typesafe.config.Config
 import scala.util.control.{ NonFatal, ControlThrowable }
-import play.api.{ Environment, Configuration, PlayConfig }
+import play.api.{ Environment, Configuration }
 
 /**
  * Creation helpers for manually instantiating databases.
@@ -94,7 +93,7 @@ object Databases {
  */
 abstract class DefaultDatabase(val name: String, configuration: Config, environment: Environment) extends Database {
 
-  private val config = PlayConfig(configuration)
+  private val config = Configuration(configuration)
   val databaseConfig = DatabaseConfig.fromConfig(config, environment)
 
   // abstract methods to be implemented
@@ -197,21 +196,11 @@ class PooledDatabase(name: String, configuration: Config, environment: Environme
   def this(name: String, configuration: Configuration) = this(name, configuration.underlying, Environment.simple(), new HikariCPConnectionPool(Environment.simple()))
 
   def createDataSource(): DataSource = {
-    val datasource: DataSource = pool.create(name, databaseConfig, configuration)
-    if (configuration.getBoolean("logSql")) {
-      val proxyDatasource = new LogSqlDataSource()
-      proxyDatasource.setTargetDSDirect(datasource)
-      proxyDatasource
-    } else {
-      datasource
-    }
+    pool.create(name, databaseConfig, configuration)
   }
 
   def closeDataSource(dataSource: DataSource): Unit = {
-    dataSource match {
-      case ds: LogSqlDataSource => pool.close(ds.getTargetDatasource)
-      case _ => pool.close(dataSource)
-    }
+    pool.close(dataSource)
   }
 
 }

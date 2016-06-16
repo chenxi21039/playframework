@@ -1,7 +1,9 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package javaguide.http
+
+import java.util.concurrent.CompletableFuture
 
 import play.api.Application
 import akka.stream.ActorMaterializer
@@ -54,7 +56,7 @@ object JavaRouting extends Specification {
       running() { app =>
         implicit val mat = ActorMaterializer()(app.actorSystem)
         header("Location", call(new MockJavaAction {
-          override def invocation = F.Promise.pure(new javaguide.http.routing.controllers.Application().index())
+          override def invocation = CompletableFuture.completedFuture(new javaguide.http.routing.controllers.Application().index())
         }, FakeRequest())) must beSome("/hello/Bob")
       }
     }

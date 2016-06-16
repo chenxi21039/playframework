@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package scalaguide.dependencyinjection
 
@@ -18,9 +18,10 @@ object CompileTimeDependencyInjection extends Specification {
       val context = ApplicationLoader.createContext(environment,
         Map("play.application.loader" -> classOf[basic.MyApplicationLoader].getName)
       )
+      val components = new messages.MyComponents(context)
       val application = ApplicationLoader(context).load(context)
       application must beAnInstanceOf[Application]
-      application.routes.documentation must beEmpty
+      components.router.documentation must beEmpty
     }
     "allow using other components" in {
       val context = ApplicationLoader.createContext(environment)

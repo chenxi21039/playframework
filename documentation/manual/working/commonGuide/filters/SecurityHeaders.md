@@ -1,4 +1,4 @@
-<!--- Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com> -->
+<!--- Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com> -->
 # Configuring Security Headers
 
 Play provides a security headers filter that can be used to configure some default headers in the HTTP response to mitigate security issues and provide an extra level of defense for new applications.
@@ -27,7 +27,7 @@ play.http.filters = "filters.MyFilters"
 
 Scaladoc is available in the [play.filters.headers](api/scala/play/filters/headers/package.html) package.
 
-The filter will set headers in the HTTP response automatically.  The settings can can be configured through the following settings in `application.conf`
+The filter will set headers in the HTTP response automatically.  The settings can be configured through the following settings in `application.conf`
 
 * `play.filters.headers.frameOptions` - sets [X-Frame-Options](https://developer.mozilla.org/en-US/docs/HTTP/X-Frame-Options), "DENY" by default.
 * `play.filters.headers.xssProtection` - sets [X-XSS-Protection](https://blogs.msdn.microsoft.com/ie/2008/07/02/ie8-security-part-iv-the-xss-filter/), "1; mode=block" by default.
@@ -40,3 +40,13 @@ Any of the headers can be disabled by setting a configuration value of `null`, f
     play.filters.headers.frameOptions = null
 
 For a full listing of configuration options, see the Play filters [`reference.conf`](resources/confs/filters-helpers/reference.conf).
+
+## Action-specific overrides
+
+Security headers may be overridden in specific actions using `withHeaders` on the result:
+
+@[allowActionSpecificHeaders](code/SecurityHeaders.scala)
+
+Any security headers not mentioned in `withHeaders` will use the usual configured values
+(if present) or the defaults.  Action-specific security headers are ignored unless 
+`play.filters.headers.allowActionSpecificHeaders` is set to `true` in the configuration.

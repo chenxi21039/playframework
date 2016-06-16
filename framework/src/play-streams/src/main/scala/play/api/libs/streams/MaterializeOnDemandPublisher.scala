@@ -1,12 +1,12 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.api.libs.streams
 
 import akka.stream.Materializer
 import akka.stream.scaladsl.{ Sink, Source }
 import org.reactivestreams.{ Publisher, Subscriber, Subscription }
-import play.api.libs.concurrent.StateMachine
+import play.api.libs.streams.concurrent.StateMachine
 
 private[play] object MaterializeOnDemandPublisher {
   sealed trait State

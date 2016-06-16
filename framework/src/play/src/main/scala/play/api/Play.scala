@@ -1,13 +1,11 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.api
 
 import akka.stream.Materializer
 import play.api.i18n.MessagesApi
 import play.utils.Threads
-
-import java.io._
 
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
@@ -59,7 +57,7 @@ object Play {
    * @deprecated This is a static reference to application, use DI, since 2.5.0
    */
   @deprecated("This is a static reference to application, use DI", "2.5.0")
-  def unsafeApplication: Application = _currentApp
+  def unsafeApplication: Application = privateMaybeApplication.orNull
 
   /**
    * Optionally returns the current running application.
@@ -67,12 +65,18 @@ object Play {
    * @deprecated This is a static reference to application, use DI, since 2.5.0
    */
   @deprecated("This is a static reference to application, use DI instead", "2.5.0")
-  def maybeApplication: Option[Application] = Option(_currentApp)
+  def maybeApplication: Option[Application] = privateMaybeApplication
 
-  private[play] def privateMaybeApplication: Option[Application] = Option(_currentApp)
+  private[play] def privateMaybeApplication: Option[Application] = {
+    Option(_currentApp) match {
+      case Some(app) if !app.configuration.getBoolean("play.globalApplication").getOrElse(true) =>
+        sys.error("The global application is disabled. Set play.globalApplication to allow global state here")
+      case opt => opt
+    }
+  }
 
   /* Used by the routes compiler to resolve an application for the injector.  Treat as private. */
-  def routesCompilerMaybeApplication: Option[Application] = Option(_currentApp)
+  def routesCompilerMaybeApplication: Option[Application] = privateMaybeApplication
 
   /**
    * Implicitly import the current running application in the context.
@@ -85,7 +89,7 @@ object Play {
   @deprecated("This is a static reference to application, use DI instead", "2.5.0")
   implicit def current: Application = privateMaybeApplication.getOrElse(sys.error("There is no started application"))
 
-  @volatile private[play] var _currentApp: Application = _
+  @volatile private var _currentApp: Application = _
 
   /**
    * Starts this application.
@@ -98,18 +102,6 @@ object Play {
     stop(_currentApp)
 
     _currentApp = app
-
-    Threads.withContextClassLoader(app.classloader) {
-      // Call before start now
-      app.global.beforeStart(app)
-
-      // Ensure routes are eagerly loaded, so that the reverse routers are
-      // correctly initialised before plugins are started.
-      app.routes
-
-      // If the global plugin is loaded, then send it a start now.
-      app.global.onStart(app)
-    }
 
     app.mode match {
       case Mode.Test =>
@@ -124,92 +116,11 @@ object Play {
   def stop(app: Application) {
     if (app != null) {
       Threads.withContextClassLoader(app.classloader) {
-        app.global.onStop(app)
         try { Await.ready(app.stop(), Duration.Inf) } catch { case NonFatal(e) => logger.warn("Error stopping application", e) }
       }
     }
     _currentApp = null
   }
-
-  /**
-   * @deprecated inject the [[play.api.Environment]] instead
-   */
-  @deprecated("inject the play.api.Environment instead", "2.5.0")
-  def resourceAsStream(name: String)(implicit app: Application): Option[InputStream] = {
-    app.resourceAsStream(name)
-  }
-
-  /**
-   * @deprecated inject the [[play.api.Environment]] instead
-   */
-  @deprecated("inject the play.api.Environment instead", "2.5.0")
-  def resource(name: String)(implicit app: Application): Option[java.net.URL] = {
-    app.resource(name)
-  }
-
-  /**
-   * @deprecated inject the [[play.api.Environment]] instead
-   */
-  @deprecated("inject the play.api.Environment instead", "2.5.0")
-  def getFile(relativePath: String)(implicit app: Application): File = {
-    app.getFile(relativePath)
-  }
-
-  /**
-   * @deprecated inject the [[play.api.Environment]] instead
-   */
-  @deprecated("inject the play.api.Environment instead", "2.5.0")
-  def getExistingFile(relativePath: String)(implicit app: Application): Option[File] = {
-    app.getExistingFile(relativePath)
-  }
-
-  /**
-   * @deprecated inject the [[play.api.Application]] instead
-   */
-  @deprecated("inject the play.api.Environment instead", "2.5.0")
-  def application(implicit app: Application): Application = app
-
-  /**
-   * @deprecated inject the [[play.api.Environment]] instead
-   */
-  @deprecated("inject the play.api.Environment instead", "2.5.0")
-  def classloader(implicit app: Application): ClassLoader = app.classloader
-
-  /**
-   * @deprecated inject the [[play.api.Configuration]] instead
-   */
-  @deprecated("inject the play.api.Environment instead", "2.5.0")
-  def configuration(implicit app: Application): Configuration = app.configuration
-
-  /**
-   * @deprecated inject the [[play.api.routing.Router]] instead
-   */
-  @deprecated("inject the play.api.Environment instead", "2.5.0")
-  def routes(implicit app: Application): play.api.routing.Router = app.routes
-
-  /**
-   * @deprecated inject the [[play.api.Environment]] instead
-   */
-  @deprecated("inject the play.api.Environment instead", "2.5.0")
-  def mode(implicit app: Application): Mode.Mode = app.mode
-
-  /**
-   * @deprecated inject the [[play.api.Environment]] instead
-   */
-  @deprecated("inject the play.api.Environment instead", "2.5.0")
-  def isDev(implicit app: Application): Boolean = (app.mode == Mode.Dev)
-
-  /**
-   * @deprecated inject the [[play.api.Environment]] instead
-   */
-  @deprecated("inject the play.api.Environment instead", "2.5.0")
-  def isProd(implicit app: Application): Boolean = (app.mode == Mode.Prod)
-
-  /**
-   * @deprecated inject the [[play.api.Environment]] instead
-   */
-  @deprecated("inject the play.api.Environment instead", "2.5.0")
-  def isTest(implicit app: Application): Boolean = (app.mode == Mode.Test)
 
   /**
    * Returns the name of the cookie that can be used to permanently set the user's language.

@@ -1,4 +1,4 @@
-<!--- Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com> -->
+<!--- Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com> -->
 # Building Play from source
 
 If you want to use some unreleased changes for Play, or you want to contribute to the development of Play yourself, you'll need to compile Play from source. You’ll need a [Git client](https://git-scm.com/) to fetch the source.
@@ -15,7 +15,7 @@ From the shell, first checkout the Play source:
 $ git clone git://github.com/playframework/playframework.git
 ```
 
-Checkout the the branch you want, the current development branch is called `master`, while stable branches for major releases are named with a `.x`, for example, `2.4.x`.
+Checkout the branch you want, the current development branch is called `master`, while stable branches for major releases are named with a `.x`, for example, `2.5.x`.
 
 Now go to the `framework` directory and run `sbt`:
 
@@ -73,8 +73,8 @@ When you publish Play locally, it will publish a snapshot version to your local 
 Navigate to your existing Play project and make the following edits in `project/plugins.sbt`:
 
 ```scala
-// Change the sbt plugin to use the local Play build (2.5.0-SNAPSHOT)
-addSbtPlugin("com.typesafe.play" % "sbt-plugin" % "2.5.0-SNAPSHOT")
+// Change the sbt plugin to use the local Play build (2.6.0-SNAPSHOT)
+addSbtPlugin("com.typesafe.play" % "sbt-plugin" % "2.6.0-SNAPSHOT")
 ```
 
 Once you have done this, you can start the console and interact with your project normally:

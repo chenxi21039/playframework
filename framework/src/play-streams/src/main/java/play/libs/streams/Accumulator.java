@@ -1,17 +1,22 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.libs.streams;
+
+import org.reactivestreams.Publisher;
+import org.reactivestreams.Subscription;
+import org.reactivestreams.Subscriber;
 
 import akka.stream.Materializer;
 import akka.stream.javadsl.*;
 import play.api.libs.streams.Accumulator$;
 import scala.compat.java8.FutureConverters;
 
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 /**
@@ -19,7 +24,7 @@ import java.util.function.Function;
  *
  * An accumulator is a view over an Akka streams Sink that materialises to a future, that is focused on the value of
  * that future, rather than the Stream. This means methods such as <code>map</code>, <code>recover</code> and so on are
- * provided for the the eventually redeemed future value.
+ * provided for the eventually redeemed future value.
  *
  * In order to be in line with the Java ecosystem, the future implementation that this uses for the materialised value
  * of the Sink is java.util.concurrent.CompletionStage, and running this accumulator will yield a CompletionStage. The
@@ -153,6 +158,98 @@ public abstract class Accumulator<E, A> {
      */
     public static <E, A> Accumulator<E, A> done(CompletionStage<A> a) {
         return new DoneAccumulator<>(a);
+    }
+
+    /**
+     * Flatten a completion stage of an accumulator to an accumulator.
+     *
+     * @param stage the CompletionStage (asynchronous) accumulator
+     * @param materializer the stream materializer
+     * @return The accumulator using the given completion stage
+     */
+    public static <E, A> Accumulator<E, A> flatten(CompletionStage<Accumulator<E, A>> stage, Materializer materializer) {
+        final CompletableFuture<A> result = new CompletableFuture<A>();
+        final FlattenSubscriber<A, E> subscriber = 
+            new FlattenSubscriber<>(stage, result, materializer);
+
+        final Sink<E, CompletableFuture<A>> sink =
+            Sink.fromSubscriber(subscriber).
+            mapMaterializedValue(x -> result);
+
+        return new SinkAccumulator(sink);
+    }
+
+    private static final class NoOpSubscriber<E> implements Subscriber<E> {
+        public void onSubscribe(Subscription sub) { }
+        public void onError(Throwable t) { }
+        public void onComplete() { }
+        public void onNext(E next) { }
+    }
+
+    private static final class FlattenSubscriber<A, E>
+        implements Subscriber<E> {
+
+        private final CompletionStage<Accumulator<E, A>> stage;
+        private final CompletableFuture<A> result;
+        private final Materializer materializer;
+        private volatile Subscriber<? super E> underlying =
+            new NoOpSubscriber<E>();
+
+        public FlattenSubscriber(CompletionStage<Accumulator<E, A>> stage,
+                                 CompletableFuture<A> result,
+                                 Materializer materializer) {
+
+            this.stage = stage;
+            this.result = result;
+            this.materializer = materializer;
+        }
+
+        private Publisher<E> publisher(final Subscription sub) {
+            return s -> {
+                underlying = s;
+                s.onSubscribe(sub);
+            };
+        }
+
+        private BiFunction<A, Throwable, Void> completionHandler =
+            new BiFunction<A, Throwable, Void>() {
+                public Void apply(A completion, Throwable err) {
+                    if (completion != null) {
+                        result.complete(completion);
+                    } else {
+                        result.completeExceptionally(err);
+                    }
+
+                    return null;
+                }
+            };
+
+        private CompletableFuture<A> completeResultWith(final CompletionStage<A> asyncRes) {
+            asyncRes.handleAsync(completionHandler);
+
+            return this.result;
+        }
+    
+        private BiFunction<Accumulator<E, A>, Throwable, Void> handler(final Subscription sub) {
+            return (acc, error) -> {
+                if (acc != null) {
+                    Source.fromPublisher(publisher(sub)).runWith(acc.toSink().mapMaterializedValue(this::completeResultWith), materializer);
+                } else {
+                    // On error
+                    sub.cancel();
+                    result.completeExceptionally(error);
+                }
+                return null;
+            };
+        }
+
+        public void onSubscribe(Subscription sub) {
+            this.stage.handleAsync(handler(sub));
+        }
+
+        public void onError(Throwable t) { underlying.onError(t); }
+        public void onComplete() { underlying.onComplete(); }
+        public void onNext(E next) { underlying.onNext(next); }
     }
 
     private static final class SinkAccumulator<E, A> extends Accumulator<E, A> {

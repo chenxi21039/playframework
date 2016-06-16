@@ -1,4 +1,4 @@
-<!--- Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com> -->
+<!--- Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com> -->
 # Installing Play
 
 This page shows how to download, install and run a Play application.  There's a built in tutorial that shows you around, so running this Play application will show you how Play itself works!
@@ -15,13 +15,13 @@ If you don't have the JDK, you have to install it from [Oracle's JDK Site](http:
 
 ## Installing Play
 
-Play is a series of libraries available in [Maven Repository](http://mvnrepository.com/artifact/com.typesafe.play), so you can use any Java build tool to build a Play project.  
+Play is a series of libraries available in [Maven Repository](http://mvnrepository.com/artifact/com.typesafe.play), so you can use any Java build tool to build a Play project.
 
-For getting started, we'll install Play though [Typesafe Activator](https://www.typesafe.com/activator/docs).  
+For getting started, we'll install Play through [Lightbend Activator](https://www.lightbend.com/activator/docs).
 
-Activator can be described as "sbt plus templates" -- it combines [sbt](http://www.scala-sbt.org/0.13/docs/index.html) (a build tool) plus a means of downloading [project templates](https://www.typesafe.com/activator/templates) (like Maven archetypes) and a web interface for managing those projects.  Templates can be examples, or they can be "seed" templates that provide a starting point for your own projects.  
+Activator can be described as "sbt plus templates" -- it combines [sbt](http://www.scala-sbt.org/0.13/docs/index.html) (a build tool) plus a means of downloading [project templates](https://www.lightbend.com/activator/templates) (like Maven archetypes) and a web interface for managing those projects.  Templates can be examples, or they can be "seed" templates that provide a starting point for your own projects.
 
-Activator comes with a couple of seed templates for Play that we recommend for getting started, [play-scala](https://www.typesafe.com/activator/template/play-scala) and [play-java](https://www.typesafe.com/activator/template/play-java).
+Activator comes with a couple of seed templates for Play that we recommend for getting started, [play-scala](https://www.lightbend.com/activator/template/play-scala) and [play-java](https://www.lightbend.com/activator/template/play-java).
 
 ### Downloading Activator
 
@@ -31,7 +31,7 @@ You can download Activator from [https://playframework.com/download](https://pla
 
 [[images/download.png]]
 
-The "offline distribution" comes with all of Activator's possible dependencies included.  It's a much larger initial download, but installing the offline distribution means that that starting up a new Play project is **much** faster, as all the dependencies are already resolved.
+The "offline distribution" comes with all of Activator's possible dependencies included.  It's a much larger initial download, but installing the offline distribution means that starting up a new Play project is **much** faster, as all the dependencies are already resolved.
 
 ### Extracting Activator
 
@@ -47,7 +47,7 @@ Add to your login profile.  Usually, this is `$HOME/.profile`:
 
 ```
 export PATH=/path/to/activator-x.x.x:$PATH
-```  
+```
 
 Make sure that the `activator` script is executable. If it's not:
 
@@ -60,7 +60,7 @@ chmod u+x /path/to/activator-x.x.x/activator
 In a command prompt, type:
 
 ```
-setx PATH=%PATH%;"C:\path\to\activator-x.x.x"
+setx PATH=%PATH%;"C:\path\to\activator-x.x.x\bin"
 ```
 
 Note that [setx](https://technet.microsoft.com/en-us/library/cc755104.aspx) is only available on Windows 8 or later -- before that, and you will have to use the [System Properties dialog](https://java.com/en/download/help/path.xml).
@@ -77,7 +77,7 @@ Follow the arrows to create a new project:
 
 [[images/webTemplate.png]]
 
-You can read the [Activator documentation](https://www.typesafe.com/activator/docs) for more information on how to use the Web Interface.
+You can read the [Activator documentation](https://www.lightbend.com/activator/docs) for more information on how to use the Web Interface.
 
 ## Accessing the Built-in Tutorial
 

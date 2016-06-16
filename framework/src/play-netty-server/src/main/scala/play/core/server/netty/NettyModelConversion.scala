@@ -1,9 +1,12 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.core.server.netty
 
 import java.net.{ URI, InetSocketAddress }
+import java.security.cert.X509Certificate
+import javax.net.ssl.SSLEngine
+import javax.net.ssl.SSLPeerUnverifiedException
 
 import akka.stream.Materializer
 import akka.stream.scaladsl.{ Sink, Source }
@@ -11,14 +14,16 @@ import akka.util.ByteString
 import com.typesafe.netty.http.{ DefaultStreamedHttpResponse, StreamedHttpRequest }
 import io.netty.buffer.{ ByteBuf, Unpooled }
 import io.netty.handler.codec.http._
+import io.netty.handler.ssl.SslHandler
 import io.netty.util.ReferenceCountUtil
 import play.api.Logger
+import play.api.http._
 import play.api.http.HeaderNames._
-import play.api.http.{ Status, HttpChunk, HttpEntity }
 import play.api.mvc._
 import play.core.server.common.{ ConnectionInfo, ServerResultUtils, ForwardedHeaderHandler }
 
 import scala.collection.JavaConverters._
+import scala.concurrent.Future
 import scala.util.{ Failure, Try }
 import scala.util.control.NonFatal
 
@@ -33,18 +38,18 @@ private[server] class NettyModelConversion(forwardedHeaderHandler: ForwardedHead
    */
   def convertRequest(requestId: Long,
     remoteAddress: InetSocketAddress,
-    secureProtocol: Boolean,
+    sslHandler: Option[SslHandler],
     request: HttpRequest): Try[RequestHeader] = {
 
     if (request.getDecoderResult.isFailure) {
       Failure(request.getDecoderResult.cause())
     } else {
-      tryToCreateRequest(request, requestId, remoteAddress, secureProtocol)
+      tryToCreateRequest(request, requestId, remoteAddress, sslHandler)
     }
   }
 
   /** Try to create the request. May fail if the path is invalid */
-  private def tryToCreateRequest(request: HttpRequest, requestId: Long, remoteAddress: InetSocketAddress, secureProtocol: Boolean): Try[RequestHeader] = {
+  private def tryToCreateRequest(request: HttpRequest, requestId: Long, remoteAddress: InetSocketAddress, sslHandler: Option[SslHandler]): Try[RequestHeader] = {
 
     Try {
       val uri = new QueryStringDecoder(request.getUri)
@@ -55,15 +60,18 @@ private[server] class NettyModelConversion(forwardedHeaderHandler: ForwardedHead
         }
       }
       // wrapping into URI to handle absoluteURI
-      val path = new URI(uri.path()).getRawPath
-      createRequestHeader(request, requestId, path, parameters, remoteAddress, secureProtocol)
+      val path = Option(new URI(uri.path).getRawPath).getOrElse {
+        // if the URI has no path, this will trigger a 400 error
+        throw new IllegalStateException(s"Cannot parse path from URI: ${uri.path}")
+      }
+      createRequestHeader(request, requestId, path, parameters, remoteAddress, sslHandler)
     }
   }
 
   /** Create the request header */
   private def createRequestHeader(request: HttpRequest, requestId: Long, parsedPath: String,
     parameters: Map[String, Seq[String]], _remoteAddress: InetSocketAddress,
-    secureProtocol: Boolean): RequestHeader = {
+    sslHandler: Option[SslHandler]): RequestHeader = {
 
     new RequestHeader {
       override val id = requestId
@@ -75,15 +83,16 @@ private[server] class NettyModelConversion(forwardedHeaderHandler: ForwardedHead
       override def queryString = parameters
       override val headers = new NettyHeadersWrapper(request.headers)
       private lazy val remoteConnection: ConnectionInfo = {
-        forwardedHeaderHandler.remoteConnection(_remoteAddress.getAddress, secureProtocol, headers)
+        forwardedHeaderHandler.remoteConnection(_remoteAddress.getAddress, sslHandler.isDefined, headers)
       }
       override def remoteAddress = remoteConnection.address.getHostAddress
       override def secure = remoteConnection.secure
+      override lazy val clientCertificateChain = clientCertificatesFromSslEngine(sslHandler.map(_.engine()))
     }
   }
 
   /** Create an unparsed request header. Used when even Netty couldn't parse the request. */
-  def createUnparsedRequestHeader(requestId: Long, request: HttpRequest, _remoteAddress: InetSocketAddress, secureProtocol: Boolean) = {
+  def createUnparsedRequestHeader(requestId: Long, request: HttpRequest, _remoteAddress: InetSocketAddress, sslHandler: Option[SslHandler]) = {
 
     new RequestHeader {
       override def id = requestId
@@ -115,7 +124,8 @@ private[server] class NettyModelConversion(forwardedHeaderHandler: ForwardedHead
       }
       override val headers = new NettyHeadersWrapper(request.headers)
       override def remoteAddress = _remoteAddress.getAddress.toString
-      override def secure = secureProtocol
+      override def secure = sslHandler.isDefined
+      override lazy val clientCertificateChain = clientCertificatesFromSslEngine(sslHandler.map(_.engine()))
     }
   }
 
@@ -144,36 +154,39 @@ private[server] class NettyModelConversion(forwardedHeaderHandler: ForwardedHead
   }
 
   /** Create a Netty response from the result */
-  def convertResult(result: Result, requestHeader: RequestHeader, httpVersion: HttpVersion)(implicit mat: Materializer): HttpResponse = {
+  def convertResult(
+    result: Result, requestHeader: RequestHeader, httpVersion: HttpVersion, errorHandler: HttpErrorHandler)(
+      implicit mat: Materializer): Future[HttpResponse] = {
 
-    val responseStatus = result.header.reasonPhrase match {
-      case Some(phrase) => new HttpResponseStatus(result.header.status, phrase)
-      case None => HttpResponseStatus.valueOf(result.header.status)
-    }
+    ServerResultUtils.resultConversionWithErrorHandling(requestHeader, result, errorHandler) { result =>
 
-    val connectionHeader = ServerResultUtils.determineConnectionHeader(requestHeader, result)
-    val skipEntity = requestHeader.method == HttpMethod.HEAD.name()
+      val responseStatus = result.header.reasonPhrase match {
+        case Some(phrase) => new HttpResponseStatus(result.header.status, phrase)
+        case None => HttpResponseStatus.valueOf(result.header.status)
+      }
 
-    val response: HttpResponse = result.body match {
+      val connectionHeader = ServerResultUtils.determineConnectionHeader(requestHeader, result)
+      val skipEntity = requestHeader.method == HttpMethod.HEAD.name()
 
-      case any if skipEntity =>
-        ServerResultUtils.cancelEntity(any)
-        new DefaultFullHttpResponse(httpVersion, responseStatus, Unpooled.EMPTY_BUFFER)
+      val response: HttpResponse = result.body match {
 
-      case HttpEntity.Strict(data, _) =>
-        new DefaultFullHttpResponse(httpVersion, responseStatus, byteStringToByteBuf(data))
+        case any if skipEntity =>
+          ServerResultUtils.cancelEntity(any)
+          new DefaultFullHttpResponse(httpVersion, responseStatus, Unpooled.EMPTY_BUFFER)
 
-      case HttpEntity.Streamed(stream, _, _) =>
-        createStreamedResponse(stream, httpVersion, responseStatus)
+        case HttpEntity.Strict(data, _) =>
+          new DefaultFullHttpResponse(httpVersion, responseStatus, byteStringToByteBuf(data))
 
-      case HttpEntity.Chunked(chunks, _) =>
-        createChunkedResponse(chunks, httpVersion, responseStatus)
-    }
+        case HttpEntity.Streamed(stream, _, _) =>
+          createStreamedResponse(stream, httpVersion, responseStatus)
 
-    // Set response headers
-    val headers = ServerResultUtils.splitSetCookieHeaders(result.header.headers)
+        case HttpEntity.Chunked(chunks, _) =>
+          createChunkedResponse(chunks, httpVersion, responseStatus)
+      }
 
-    try {
+      // Set response headers
+      val headers = ServerResultUtils.splitSetCookieHeaders(result.header.headers)
+
       headers foreach {
         case (name, value) => response.headers().add(name, value)
       }
@@ -182,7 +195,12 @@ private[server] class NettyModelConversion(forwardedHeaderHandler: ForwardedHead
       if (mayHaveContentLength(result.header.status)) {
         result.body.contentLength.foreach { contentLength =>
           if (HttpHeaders.isContentLengthSet(response)) {
-            logger.warn("Content-Length header was set manually in the header, ignoring manual header")
+            val manualContentLength = response.headers.get(CONTENT_LENGTH)
+            if (manualContentLength == contentLength.toString) {
+              logger.info(s"Manual Content-Length header, ignoring manual header.")
+            } else {
+              logger.warn(s"Content-Length header was set manually in the header ($manualContentLength) but is not the same as actual content length ($contentLength).")
+            }
           }
           HttpHeaders.setContentLength(response, contentLength)
         }
@@ -204,19 +222,14 @@ private[server] class NettyModelConversion(forwardedHeaderHandler: ForwardedHead
         response.headers().add(DATE, dateHeader)
       }
 
+      Future.successful(response)
+    } {
+      // Fallback response
+      val response = new DefaultFullHttpResponse(httpVersion, HttpResponseStatus.INTERNAL_SERVER_ERROR, Unpooled.EMPTY_BUFFER)
+      HttpHeaders.setContentLength(response, 0)
+      response.headers().add(DATE, dateHeader)
+      response.headers().add(CONNECTION, "close")
       response
-    } catch {
-      case NonFatal(e) =>
-        if (logger.isErrorEnabled) {
-          val prettyHeaders = headers.map { case (name, value) => s"$name -> $value" }.mkString("[", ",", "]")
-          val msg = s"Exception occurred while setting response's headers to $prettyHeaders. Action taken is to set the response's status to ${HttpResponseStatus.INTERNAL_SERVER_ERROR} and discard all headers."
-          logger.error(msg, e)
-        }
-        val response = new DefaultFullHttpResponse(httpVersion, HttpResponseStatus.INTERNAL_SERVER_ERROR, Unpooled.EMPTY_BUFFER)
-        HttpHeaders.setContentLength(response, 0)
-        response.headers().add(DATE, dateHeader)
-        response.headers().add(CONNECTION, "close")
-        response
     }
   }
 
@@ -250,7 +263,7 @@ private[server] class NettyModelConversion(forwardedHeaderHandler: ForwardedHead
     response
   }
 
-  /** Whether the the given status may have a content length header or not. */
+  /** Whether the given status may have a content length header or not. */
   private def mayHaveContentLength(status: Int) =
     status != Status.NO_CONTENT && status != Status.NOT_MODIFIED
 
@@ -265,6 +278,16 @@ private[server] class NettyModelConversion(forwardedHeaderHandler: ForwardedHead
 
   private def byteStringToHttpContent(bytes: ByteString): HttpContent = {
     new DefaultHttpContent(byteStringToByteBuf(bytes))
+  }
+
+  private def clientCertificatesFromSslEngine(sslEngine: Option[SSLEngine]): Option[Seq[X509Certificate]] = {
+    try {
+      sslEngine.map { engine =>
+        engine.getSession.getPeerCertificates.toSeq.collect { case x509: X509Certificate => x509 }
+      }
+    } catch {
+      case e: SSLPeerUnverifiedException => None
+    }
   }
 
   // cache the date header of the last response so we only need to compute it every second

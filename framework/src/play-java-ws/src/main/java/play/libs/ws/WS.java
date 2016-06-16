@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.libs.ws;
 
@@ -12,7 +12,6 @@ import java.io.IOException;
 import org.asynchttpclient.AsyncHttpClientConfig;
 
 import org.asynchttpclient.DefaultAsyncHttpClientConfig;
-import play.Application;
 import play.libs.ws.ahc.AhcWSClient;
 
 /**

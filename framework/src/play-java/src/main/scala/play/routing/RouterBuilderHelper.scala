@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.routing
 
@@ -15,7 +15,7 @@ import play.mvc.Result
 import play.utils.UriEncoding
 import scala.collection.JavaConversions._
 
-import play.api.libs.iteratee.Execution.Implicits.trampoline
+import play.core.Execution.Implicits.trampoline
 
 import scala.compat.java8.FutureConverters
 import scala.concurrent.Future

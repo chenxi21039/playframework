@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package javaguide.tests;
 
@@ -13,7 +13,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import play.libs.ws.WSClient;
 
 class GitHubClient {
-    @Inject WSClient ws;
+    private WSClient ws;
+
+    @Inject
+    public GitHubClient(WSClient ws) {
+        this.ws = ws;
+    }
+
     String baseUrl = "https://api.github.com";
 
     public CompletionStage<List<String>> getRepositories() {

@@ -1,4 +1,4 @@
-<!--- Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com> -->
+<!--- Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com> -->
 Play Activator templates
 ========================
 
@@ -21,10 +21,10 @@ The templates sources are partly generated, which means you need to "build" them
 you can run them.
 
 There is a `syncTemplates` command that will build the templates and keep them in sync
-with the sources as they change. The most convenvient way to use this is to use triggered
+with the sources as they change. The most convenient way to use this is to use triggered
 execution:
 
-    sbt ~syncTemplates
+    sbt "~syncTemplates"
 
 Then in another window, you can test/run the template, for example, to run the
 `play-scala` template:

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.runsupport
 
@@ -10,7 +10,8 @@ import java.util.jar.JarFile
 import play.api.PlayException
 import play.core.{ Build, BuildLink, BuildDocHandler }
 import play.runsupport.classloader.{ ApplicationClassLoaderProvider, DelegatingClassLoader }
-import sbt.{ PathFinder, WatchState, SourceModificationWatch }
+import play.twirl.compiler.MaybeGeneratedSource
+import sbt._
 
 object Reloader {
 
@@ -267,6 +268,11 @@ object Reloader {
             case e: Throwable => // Swallow any exceptions so that all `onError`s get called.
           }
         }
+        // Convert play-server exceptions to our to our ServerStartException
+        def getRootCause(t: Throwable): Throwable = if (t.getCause == null) t else getRootCause(t.getCause)
+        if (getRootCause(e).getClass.getName == "play.core.server.ServerListenException") {
+          throw new ServerStartException(e)
+        }
         throw e
     }
   }
@@ -380,7 +386,15 @@ class Reloader(
     val topType = className.split('$').head
     currentSourceMap.flatMap { sources =>
       sources.get(topType).map { source =>
-        Array[java.lang.Object](source.original.getOrElse(source.file), line)
+        source.original match {
+          case Some(origFile) if line != null =>
+            val origLine: java.lang.Integer = MaybeGeneratedSource.unapply(source.file).map(_.mapLine(line): java.lang.Integer).orNull
+            Array[java.lang.Object](origFile, origLine)
+          case Some(origFile) =>
+            Array[java.lang.Object](origFile, null)
+          case None =>
+            Array[java.lang.Object](source.file, line)
+        }
       }
     }.orNull
   }

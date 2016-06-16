@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package detailedtopics.configuration.gzipencoding;
 
@@ -13,17 +13,21 @@ import javax.inject.Inject;
 
 public class CustomFilters implements HttpFilters {
 
-    @Inject Materializer materializer;
+    private EssentialFilter[] filters;
 
-    //#gzip-filter
-    GzipFilter gzipFilter = new GzipFilter(
-      new GzipFilterConfig().withShouldGzip((req, res) ->
-        res.body().contentType().orElse("").startsWith("text/html")
-      ), materializer
-    );
-    //#gzip-filter
+    @Inject
+    public CustomFilters(Materializer materializer) {
+        //#gzip-filter
+        GzipFilter gzipFilter = new GzipFilter(
+          new GzipFilterConfig().withShouldGzip((req, res) ->
+            res.body().contentType().orElse("").startsWith("text/html")
+          ), materializer
+        );
+        //#gzip-filter
+        filters = new EssentialFilter[] { gzipFilter.asJava() };
+    }
 
     public EssentialFilter[] filters() {
-        return new EssentialFilter[] { gzipFilter.asJava() };
+        return filters;
     }
 }

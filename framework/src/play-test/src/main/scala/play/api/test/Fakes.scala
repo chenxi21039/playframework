@@ -1,24 +1,23 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.api.test
 
-import javax.inject.{ Inject, Provider }
+import java.security.cert.X509Certificate
 
 import akka.actor.ActorSystem
 import akka.stream.Materializer
 import akka.util.ByteString
 import play.api._
 import play.api.http._
-import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.inject._
-import play.api.mvc._
-import play.api.libs.json.JsValue
-import play.api.routing.Router
-import scala.concurrent.Future
-import xml.NodeSeq
-import scala.runtime.AbstractPartialFunction
+import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.libs.Files.TemporaryFile
+import play.api.libs.json.JsValue
+import play.api.mvc._
+
+import scala.concurrent.Future
+import scala.xml.NodeSeq
 
 /**
  * Fake HTTP headers implementation.
@@ -37,7 +36,7 @@ case class FakeHeaders(data: Seq[(String, String)] = Seq.empty) extends Headers(
  * @param body The request body.
  * @param remoteAddress The client IP.
  */
-case class FakeRequest[A](method: String, uri: String, headers: Headers, body: A, remoteAddress: String = "127.0.0.1", version: String = "HTTP/1.1", id: Long = 666, tags: Map[String, String] = Map.empty[String, String], secure: Boolean = false) extends Request[A] {
+case class FakeRequest[A](method: String, uri: String, headers: Headers, body: A, remoteAddress: String = "127.0.0.1", version: String = "HTTP/1.1", id: Long = 666, tags: Map[String, String] = Map.empty[String, String], secure: Boolean = false, clientCertificateChain: Option[Seq[X509Certificate]] = None) extends Request[A] {
 
   def copyFakeRequest[B](
     id: Long = this.id,
@@ -49,9 +48,10 @@ case class FakeRequest[A](method: String, uri: String, headers: Headers, body: A
     headers: Headers = this.headers,
     remoteAddress: String = this.remoteAddress,
     secure: Boolean = this.secure,
+    clientCertificateChain: Option[Seq[X509Certificate]] = this.clientCertificateChain,
     body: B = this.body): FakeRequest[B] = {
     new FakeRequest[B](
-      method, uri, headers, body, remoteAddress, version, id, tags, secure
+      method, uri, headers, body, remoteAddress, version, id, tags, secure, clientCertificateChain
     )
   }
 
@@ -199,18 +199,15 @@ case class FakeApplication(
     override val path: java.io.File = new java.io.File("."),
     override val classloader: ClassLoader = classOf[FakeApplication].getClassLoader,
     additionalConfiguration: Map[String, _ <: Any] = Map.empty,
-    @deprecated("Use dependency injection", "2.5.0") withGlobal: Option[GlobalSettings] = None,
     withRoutes: PartialFunction[(String, String), Handler] = PartialFunction.empty) extends Application {
 
   private val app: Application = new GuiceApplicationBuilder()
     .in(Environment(path, classloader, Mode.Test))
-    .global(withGlobal.orNull)
     .configure(additionalConfiguration)
     .routes(withRoutes)
     .build
 
   override def mode: Mode.Mode = app.mode
-  @deprecated("Use dependency injection", "2.5.0") override def global: GlobalSettings = app.global
   override def configuration: Configuration = app.configuration
   override def actorSystem: ActorSystem = app.actorSystem
   override implicit def materializer: Materializer = app.materializer

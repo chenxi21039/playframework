@@ -1,38 +1,42 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.api.libs
 
-import akka.stream.scaladsl.{ Flow, Source }
+import akka.stream.scaladsl.Flow
 import play.api.http.{ ContentTypeOf, ContentTypes, Writeable }
 import play.api.mvc._
-import play.api.libs.iteratee._
-
-import play.core.Execution.Implicits.internalContext
 import play.api.libs.json.{ Json, JsValue }
 
 /**
- * Helps you format Server-Sent Events
- * @see [[http://www.w3.org/TR/eventsource/]]
+ * This class provides an easy way to use Server Sent Events (SSE) as a chunked encoding, using an Akka Source.
+ *
+ * Please see the <a href="http://dev.w3.org/html5/eventsource/">Server-Sent Events specification</a> for details.
+ *
+ * An example of how to display an event stream:
+ *
+ * {{{
+ *   import java.time.ZonedDateTime
+ *   import java.time.format.DateTimeFormatter
+ *   import javax.inject.Singleton
+ *   import akka.stream.scaladsl.Source
+ *   import play.api.http.ContentTypes
+ *   import play.api.libs.EventSource
+ *   import play.api.mvc._
+ *
+ *   import scala.concurrent.duration._
+ *
+ *   def liveClock() = Action {
+ *     val df: DateTimeFormatter = DateTimeFormatter.ofPattern("HH mm ss")
+ *     val tickSource = Source.tick(0 millis, 100 millis, "TICK")
+ *     val source = tickSource.map { (tick) =&gt;
+ *       df.format(ZonedDateTime.now())
+ *     }
+ *     Ok.chunked(source via EventSource.flow).as(ContentTypes.EVENT_STREAM)
+ *   }
+ * }}}
  */
 object EventSource {
-
-  /**
-   * Makes an `Enumeratee[E, Event]`, that is an [[iteratee.Enumeratee]] transforming `E` values
-   * into [[Event]] values.
-   *
-   * Usage example:
-   *
-   * {{{
-   *   val someDataStream: Enumerator[SomeData] = ???
-   *   Ok.chunked(someDataStream &> EventSource())
-   * }}}
-   *
-   * @tparam E from type of the Enumeratee
-   */
-  @deprecated("Use apply with an Akka source instead", "2.5.0")
-  def apply[E: EventDataExtractor: EventNameExtractor: EventIdExtractor](): Enumeratee[E, Event] =
-    Enumeratee.map[E] { e => Event(e) }
 
   /**
    * Makes a `Flow[E, Event, _]`, given an input source.
@@ -41,7 +45,7 @@ object EventSource {
    *
    * {{{
    *   val jsonStream: Source[JsValue, Unit] = createJsonSource()
-   *   Ok.chunked(jsonStream via EventSource.flow).as("text/event-stream")
+   *   Ok.chunked(jsonStream via EventSource.flow).as(ContentTypes.EVENT_STREAM)
    * }}}
    */
   def flow[E: EventDataExtractor: EventNameExtractor: EventIdExtractor]: Flow[E, Event, _] = {

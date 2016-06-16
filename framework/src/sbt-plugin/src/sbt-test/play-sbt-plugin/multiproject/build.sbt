@@ -1,5 +1,5 @@
 //
-// Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+// Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
 //
 
 lazy val root = (project in file("."))
@@ -23,7 +23,8 @@ lazy val nonplaymodule = (project in file("nonplaymodule"))
   .settings(common: _*)
 
 def common: Seq[Setting[_]] = Seq(
-  scalaVersion := Option(System.getProperty("scala.version")).getOrElse("2.11.7")
+  scalaVersion := Option(System.getProperty("scala.version")).getOrElse("2.11.7"),
+  libraryDependencies += guiceSupport
 )
 
 TaskKey[Unit]("checkPlayMonitoredFiles") := {

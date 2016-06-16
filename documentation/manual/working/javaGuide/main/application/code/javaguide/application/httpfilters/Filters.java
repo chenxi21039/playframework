@@ -1,28 +1,18 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package javaguide.application.httpfilters;
 
 // #filters
 import play.mvc.EssentialFilter;
-import play.http.HttpFilters;
+import play.http.DefaultHttpFilters;
 import play.filters.gzip.GzipFilter;
 import javax.inject.Inject;
 
-public class Filters implements HttpFilters {
-
-  private final GzipFilter gzip;
-  private final LoggingFilter logging;
-
+public class Filters extends DefaultHttpFilters {
   @Inject
   public Filters(GzipFilter gzip, LoggingFilter logging) {
-    this.gzip = gzip;
-    this.logging = logging;
-  }
-
-  @Override
-  public EssentialFilter[] filters() {
-    return new EssentialFilter[] { gzip.asJava(), logging.asJava() };
+    super(gzip, logging);
   }
 }
 //#filters

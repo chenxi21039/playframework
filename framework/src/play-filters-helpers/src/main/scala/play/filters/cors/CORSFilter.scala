@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.filters.cors
 
@@ -10,7 +10,7 @@ import play.core.j.JavaHttpErrorHandlerAdapter
 import scala.concurrent.Future
 
 import play.api.Logger
-import play.api.mvc.{ EssentialAction, Filter, RequestHeader, Result }
+import play.api.mvc.{ Filter, RequestHeader, Result }
 
 /**
  * A [[play.api.mvc.Filter]] that implements Cross-Origin Resource Sharing (CORS)
@@ -28,9 +28,9 @@ import play.api.mvc.{ EssentialAction, Filter, RequestHeader, Result }
  * @param  corsConfig  configuration of the CORS policy
  * @param  pathPrefixes  whitelist of path prefixes to restrict the filter
  *
- * @see [[CORSConfig]]
- * @see AbstractCORSPolicy
- * @see [[CORSActionBuilder]]
+ * @see [[play.filters.cors.CORSConfig]]
+ * @see [[play.filters.cors.AbstractCORSPolicy]]
+ * @see [[play.filters.cors.CORSActionBuilder]]
  * @see [[http://www.w3.org/TR/cors/ CORS specification]]
  */
 class CORSFilter(

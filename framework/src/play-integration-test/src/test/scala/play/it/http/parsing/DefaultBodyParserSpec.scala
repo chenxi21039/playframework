@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.it.http.parsing
 
@@ -14,24 +14,25 @@ object DefaultBodyParserSpec extends PlaySpecification {
   "The default body parser" should {
 
     def parse(method: String, contentType: Option[String], body: ByteString)(implicit mat: Materializer) = {
-      val request = FakeRequest(method, "/x").withHeaders(contentType.map(CONTENT_TYPE -> _).toSeq: _*)
+      val request = FakeRequest(method, "/x").withHeaders(
+        contentType.map(CONTENT_TYPE -> _).toSeq :+ (CONTENT_LENGTH -> body.length.toString): _*)
       await(BodyParsers.parse.default(request).run(Source.single(body)))
     }
 
-    "ignore text bodies for DELETE requests" in new WithApplication() {
-      parse("GET", Some("text/plain"), ByteString("bar")) must beRight(AnyContentAsEmpty)
+    "parse text bodies for DELETE requests" in new WithApplication() {
+      parse("GET", Some("text/plain"), ByteString("bar")) must beRight(AnyContentAsText("bar"))
     }
 
-    "ignore text bodies for GET requests" in new WithApplication() {
-      parse("GET", Some("text/plain"), ByteString("bar")) must beRight(AnyContentAsEmpty)
+    "parse text bodies for GET requests" in new WithApplication() {
+      parse("GET", Some("text/plain"), ByteString("bar")) must beRight(AnyContentAsText("bar"))
     }
 
-    "ignore text bodies for HEAD requests" in new WithApplication() {
-      parse("HEAD", None, ByteString("bar")) must beRight(AnyContentAsEmpty)
+    "parse text bodies for HEAD requests" in new WithApplication() {
+      parse("HEAD", Some("text/plain"), ByteString("bar")) must beRight(AnyContentAsText("bar"))
     }
 
-    "ignore text bodies for OPTIONS requests" in new WithApplication() {
-      parse("GET", Some("text/plain"), ByteString("bar")) must beRight(AnyContentAsEmpty)
+    "parse text bodies for OPTIONS requests" in new WithApplication() {
+      parse("GET", Some("text/plain"), ByteString("bar")) must beRight(AnyContentAsText("bar"))
     }
 
     "parse XML bodies for PATCH requests" in new WithApplication() {

@@ -1,4 +1,4 @@
-<!--- Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com> -->
+<!--- Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com> -->
 # Routing DSL
 
 Play provides a DSL for routers directly in code.  This DSL has many uses, including embedding a light weight Play server, providing custom or more advanced routing capabilities to a regular Play application, and mocking REST services for testing.
@@ -13,7 +13,7 @@ A simple example of the DSL's use is:
 
 @[simple](code/javaguide/advanced/routing/JavaRoutingDsl.java)
 
-The `:to` parameter is extracted out and passed as the first parameter to the router.  Note that the name you give to parameters in the the path pattern is irrelevant, the important thing is that parameters in the path are in the same order as parameters in your lambda.  You can have anywhere from 0 to 3 parameters in the path pattern, and other HTTP methods, such as `POST`, `PUT` and `DELETE` are supported.
+The `:to` parameter is extracted out and passed as the first parameter to the router.  Note that the name you give to parameters in the path pattern is irrelevant, the important thing is that parameters in the path are in the same order as parameters in your lambda.  You can have anywhere from 0 to 3 parameters in the path pattern, and other HTTP methods, such as `POST`, `PUT` and `DELETE` are supported.
 
 Like Play's compiled router, the DSL also supports matching multi path segment parameters, this is done by prefixing the parameter with `*`:
 
@@ -49,6 +49,16 @@ A router can be provided to the application similarly as detailed in [[Applicati
 and in the application loader:
 
 @[load](code/AppLoader.scala)
+
+### Providing a DI router with Guice
+
+A router via Guice could be provided with the following snippet:
+
+@[load-guice2](code/GuiceRouterProvider.java)
+
+and in the application loader:
+
+@[load-guice1](code/GuiceAppLoader.java)
 
 ### Overriding binding
 

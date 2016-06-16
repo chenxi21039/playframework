@@ -1,9 +1,8 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.sbt
 
-import PlayImport.PlayKeys._
 import java.security.SecureRandom
 import com.typesafe.config.{ ConfigValue, ConfigOrigin, Config, ConfigFactory }
 import sbt._

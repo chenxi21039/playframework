@@ -1,4 +1,4 @@
-<!--- Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com> -->
+<!--- Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com> -->
 # Understanding Play thread pools
 
 Play Framework is, from the bottom up, an asynchronous web framework.  Streams are handled asynchronously using iteratees.  Thread pools in Play are tuned to use fewer threads than in traditional web frameworks, since IO in play-core never blocks.
@@ -43,7 +43,7 @@ In most situations, the appropriate execution context to use will be the **Play 
 
 @[global-thread-pool](code/ThreadPools.scala)
 
-The Play thread pool connects directly to the Application's `ActorSystem` and uses the [default dispatcher](http://doc.akka.io/docs/akka/2.4.2/scala/dispatchers.html).
+The Play thread pool connects directly to the Application's `ActorSystem` and uses the [default dispatcher](http://doc.akka.io/docs/akka/2.4.3/scala/dispatchers.html).
 
 ### Configuring the default thread pool
 
@@ -57,7 +57,7 @@ You can also try the default Akka configuration:
 
 @[akka-default-config](code/ThreadPools.scala)
 
-The full configuration options available to you can be found [here](http://doc.akka.io/docs/akka/2.4.2/general/configuration.html#Listing_of_the_Reference_Configuration).
+The full configuration options available to you can be found [here](http://doc.akka.io/docs/akka/2.4.3/general/configuration.html#Listing_of_the_Reference_Configuration).
 
 ## Using other thread pools
 

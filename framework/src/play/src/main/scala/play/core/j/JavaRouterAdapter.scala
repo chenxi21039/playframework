@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.core.j
 
@@ -9,7 +9,6 @@ import play.mvc.Http.RequestHeader
 import play.routing.Router.RouteDocumentation
 
 import scala.collection.JavaConverters._
-import scala.compat.java8.FunctionConverters._
 import scala.compat.java8.OptionConverters._
 
 /**

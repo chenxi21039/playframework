@@ -1,11 +1,11 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.core.j
 
 import java.util.concurrent.CompletionStage
 
-import play.api.libs.iteratee.Execution.trampoline
+import play.core.Execution.Implicits.trampoline
 import play.api.mvc._
 import play.mvc.{ Result => JResult }
 import play.mvc.Http.{ Context => JContext, Request => JRequest, RequestImpl => JRequestImpl, RequestHeader => JRequestHeader, Cookies => JCookies, Cookie => JCookie }
@@ -193,6 +193,8 @@ class RequestHeaderImpl(header: RequestHeader) extends JRequestHeader {
 
   def cookies = JavaHelpers.cookiesToJavaCookies(header.cookies)
 
+  override def clientCertificateChain() = OptionConverters.toJava(header.clientCertificateChain.map(_.asJava))
+
   def getQueryString(key: String): String = {
     if (queryString().containsKey(key) && queryString().get(key).length > 0) queryString().get(key)(0) else null
   }
@@ -209,6 +211,8 @@ class RequestHeaderImpl(header: RequestHeader) extends JRequestHeader {
   def hasHeader(headerName: String): Boolean = {
     getHeader(headerName) != null
   }
+
+  def hasBody: Boolean = header.hasBody
 
   private def createHeaderMap(headers: Headers): java.util.Map[String, Array[String]] = {
     val map = new java.util.TreeMap[String, Array[String]](play.core.utils.CaseInsensitiveOrdered)

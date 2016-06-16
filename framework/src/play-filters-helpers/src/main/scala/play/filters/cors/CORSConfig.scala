@@ -1,15 +1,15 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.filters.cors
 
-import play.api.{ PlayConfig, Configuration }
+import play.api.Configuration
 import play.filters.cors.CORSConfig.Origins
 
 import scala.concurrent.duration._
 
 /**
- * Configuration for AbstractCORSPolicy
+ * Configuration for [[AbstractCORSPolicy]]
  *
  *  - allow only requests with origins from a whitelist (by default all origins are allowed)
  *  - allow only HTTP methods from a whitelist for preflight requests (by default all methods are allowed)
@@ -90,7 +90,7 @@ object CORSConfig {
       preflightMaxAge = 0.seconds)
 
   /**
-   * Build a [[CORSConfig]] from a [[play.api.Configuration]]
+   * Build a [[CORSConfig]]from a [[play.api.Configuration]]
    *
    * @example The configuration is as follows:
    * {{{
@@ -107,11 +107,11 @@ object CORSConfig {
    * }}}
    */
   def fromConfiguration(conf: Configuration): CORSConfig = {
-    val config = PlayConfig(conf).get[PlayConfig]("play.filters.cors")
+    val config = conf.get[Configuration]("play.filters.cors")
     fromUnprefixedConfiguration(config)
   }
 
-  private[cors] def fromUnprefixedConfiguration(config: PlayConfig): CORSConfig = {
+  private[cors] def fromUnprefixedConfiguration(config: Configuration): CORSConfig = {
     CORSConfig(
       allowedOrigins = config.get[Option[Seq[String]]]("allowedOrigins") match {
         case Some(allowed) => Origins.Matching(allowed.toSet)

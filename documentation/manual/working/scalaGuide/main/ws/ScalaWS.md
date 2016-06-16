@@ -1,4 +1,4 @@
-<!--- Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com> -->
+<!--- Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com> -->
 # The Play WS API
 
 Sometimes we would like to call other HTTP services from within a Play application. Play supports this via its [WS library](api/scala/play/api/libs/ws/package.html), which provides a way to make asynchronous HTTP calls.
@@ -37,7 +37,7 @@ This returns a `Future[WSResponse]` where the [Response](api/scala/play/api/libs
 
 ### Request with authentication
 
-If you need to use HTTP authentication, you can specify it in the builder, using a username, password, and an [AuthScheme](api/scala/play/api/libs/ws/WSAuthScheme.html).  Valid case objects for the AuthScheme are `BASIC`, `DIGEST`, `KERBEROS`, `NONE`, `NTLM`, and `SPNEGO`.
+If you need to use HTTP authentication, you can specify it in the builder, using a username, password, and an [AuthScheme](api/scala/play/api/libs/ws/WSAuthScheme.html).  Valid case objects for the AuthScheme are `BASIC`, `DIGEST`, `KERBEROS`, `NTLM`, and `SPNEGO`.
 
 @[auth-request](code/ScalaWSSpec.scala)
 
@@ -81,6 +81,16 @@ To post url-form-encoded data a `Map[String, Seq[String]]` needs to be passed in
 
 @[url-encoded](code/ScalaWSSpec.scala)
 
+### Submitting multipart/form data
+
+To post multipart-form-encoded data a `Source[play.api.mvc.MultipartFormData.Part[Source[ByteString, Any]], Any]` needs to be passed into `post`.
+
+@[multipart-encoded](code/ScalaWSSpec.scala)
+
+To upload a file you need to pass a `play.api.mvc.MultipartFormData.FilePart[Source[ByteString, Any]]` to the `Source`:
+
+@[multipart-encoded2](code/ScalaWSSpec.scala)
+
 ### Submitting JSON data
 
 The easiest way to post JSON data is to use the [[JSON|ScalaJson]] library.
@@ -102,6 +112,25 @@ For example, imagine you have executed a database query that is returning a larg
 @[scalaws-stream-request](code/ScalaWSSpec.scala)
 
 The `largeImageFromDB` in the code snippet above is an Akka Streams `Source[ByteString, _]`.
+
+### Request Filters
+
+You can do additional processing on a WSRequest by adding a request filter.  A request filter is added by extending the [`play.api.libs.ws.WSRequestFilter`](api/scala/play/api/libs/ws/WSRequestFilter.html) trait, and then adding it to the request with `request.withRequestFilter(filter)`.  
+
+A sample request filter that logs the request in cURL format to SLF4J has been added in [`play.api.libs.ws.ahc.AhcCurlRequestLogger`](api/scala/play/api/libs/ws/ahc/AhcCurlRequestLogger.html).
+
+@[curl-logger-filter](code/ScalaWSSpec.scala)
+
+will output:
+
+```
+curl \
+  --verbose \
+  --request PUT \
+ --header 'Content-Type: application/x-www-form-urlencoded; charset=utf-8' \
+ --data 'key=value' \
+ http://localhost:19001/
+```
 
 ## Processing the Response
 
@@ -191,13 +220,12 @@ Ideally, you should close a client after you know all requests have been complet
 
 ## Accessing AsyncHttpClient
 
-You can get access to the underlying [AsyncHttpClient](http://static.javadoc.io/org.asynchttpclient/async-http-client/2.0.0-RC7/org/asynchttpclient/AsyncHttpClient.html) from a `WSClient`.
+You can get access to the underlying [AsyncHttpClient](http://static.javadoc.io/org.asynchttpclient/async-http-client/2.0.0/org/asynchttpclient/AsyncHttpClient.html) from a `WSClient`.
 
 @[underlying](code/ScalaWSSpec.scala)
 
 This is important in a couple of cases.  WS has a couple of limitations that require access to the underlying client:
 
-* `WS` does not support multi part form upload directly.  You can use the underlying client with [RequestBuilder.addBodyPart](http://static.javadoc.io/org.asynchttpclient/async-http-client/2.0.0-RC7/org/asynchttpclient/RequestBuilderBase.html#addBodyPart-org.asynchttpclient.request.body.multipart.Part-).
 * `WS` does not support streaming body upload.  In this case, you should use the `FeedableBodyGenerator` provided by AsyncHttpClient.
 
 ## Configuring WS
@@ -227,7 +255,7 @@ The request timeout can be overridden for a specific connection with `withReques
 
 The following advanced settings can be configured on the underlying AsyncHttpClientConfig.
 
-Please refer to the [AsyncHttpClientConfig Documentation](http://static.javadoc.io/org.asynchttpclient/async-http-client/2.0.0-RC7/org/asynchttpclient/DefaultAsyncHttpClientConfig.Builder.html) for more information.
+Please refer to the [AsyncHttpClientConfig Documentation](http://static.javadoc.io/org.asynchttpclient/async-http-client/2.0.0/org/asynchttpclient/DefaultAsyncHttpClientConfig.Builder.html) for more information.
 
 > **Note:** `allowPoolingConnection` and `allowSslConnectionPool` are combined in AsyncHttpClient 2.0 into a single `keepAlive` variable.  As such, `play.ws.ning.allowPoolingConnection` and `play.ws.ning.allowSslConnectionPool` are not valid and will throw an exception if configured.
 

@@ -1,7 +1,12 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.filters.csrf;
+
+import java.util.Map;
+import java.util.concurrent.CompletionStage;
+
+import javax.inject.Inject;
 
 import play.api.libs.Crypto;
 import play.api.mvc.RequestHeader;
@@ -11,10 +16,6 @@ import play.mvc.Action;
 import play.mvc.Http;
 import play.mvc.Result;
 import scala.Option;
-
-import javax.inject.Inject;
-import java.util.Map;
-import java.util.concurrent.CompletionStage;
 
 public class RequireCSRFCheckAction extends Action<RequireCSRFCheck> {
 
@@ -94,6 +95,6 @@ public class RequireCSRFCheckAction extends Action<RequireCSRFCheck> {
         }
 
         CSRFErrorHandler handler = injector.instanceOf(configuration.error());
-        return handler.handle(new Http.RequestImpl(request), msg);
+        return handler.handle(new play.core.j.RequestHeaderImpl(request), msg);
     }
 }

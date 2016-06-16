@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.i18n;
 
@@ -122,9 +122,9 @@ public class MessagesApi {
 
 
     /**
-     * Get a messages context appropriate for the given candidates.
+     * Get a messages context appropriate for the given request.
      *
-     * Will select a language from the candidates, based on the languages available, and fallback to the default language
+     * Will select a language from the request, based on the languages available, and fallback to the default language
      * if none of the candidates are available.
      *
      * @param request the incoming request

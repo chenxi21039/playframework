@@ -1,5 +1,5 @@
 //
-// Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+// Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
 //
 
 lazy val root = (project in file("."))
@@ -14,9 +14,11 @@ scalaVersion := Option(System.getProperty("scala.version")).getOrElse("2.11.7")
 // with the scripted "test" file.
 scalaSource in Test <<= baseDirectory(_ / "tests")
 
-libraryDependencies += ws
-
-libraryDependencies += specs2 % Test
+libraryDependencies ++= Seq(
+  guiceSupport,
+  ws,
+  specs2 % Test
+)
 
 PlayKeys.playInteractionMode := play.sbt.StaticPlayNonBlockingInteractionMode
 

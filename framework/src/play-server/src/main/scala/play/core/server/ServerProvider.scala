@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.core.server
 
@@ -53,7 +53,8 @@ object ServerProvider {
    */
   def fromConfiguration(classLoader: ClassLoader, configuration: Configuration): ServerProvider = {
     val ClassNameConfigKey = "play.server.provider"
-    val className: String = configuration.getString(ClassNameConfigKey).getOrElse(throw new ServerStartException(s"No ServerProvider configured with key '$ClassNameConfigKey'"))
+    val className: String = configuration.getOptional[String](ClassNameConfigKey)
+      .getOrElse(throw new ServerStartException(s"No ServerProvider configured with key '$ClassNameConfigKey'"))
     val clazz = try classLoader.loadClass(className) catch {
       case _: ClassNotFoundException => throw ServerStartException(s"Couldn't find ServerProvider class '$className'")
     }

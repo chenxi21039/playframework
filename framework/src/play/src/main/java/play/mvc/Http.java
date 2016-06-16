@@ -1,10 +1,14 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.mvc;
 
+import akka.stream.Materializer;
+import akka.stream.javadsl.Sink;
+import akka.stream.javadsl.Source;
 import akka.util.ByteString;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.google.common.collect.Lists;
 import org.w3c.dom.Document;
 import org.xml.sax.InputSource;
 import play.api.libs.json.JsValue;
@@ -19,6 +23,7 @@ import play.libs.XML;
 import scala.Tuple2;
 import scala.collection.JavaConversions;
 import scala.collection.Seq;
+import scala.compat.java8.OptionConverters;
 
 import java.io.File;
 import java.io.UnsupportedEncodingException;
@@ -26,8 +31,10 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
+import java.security.cert.X509Certificate;
 import java.util.*;
 import java.util.Map.Entry;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 import static play.libs.Scala.asScala;
@@ -42,7 +49,7 @@ public class Http {
      */
     public static class Context {
 
-        public static ThreadLocal<Context> current = new ThreadLocal<Context>();
+        public static ThreadLocal<Context> current = new ThreadLocal<>();
 
         /**
          * Retrieves the current HTTP context, for the current thread.
@@ -185,7 +192,16 @@ public class Http {
          * @return the messages for the current lang
          */
         public Messages messages() {
-            return messagesApi().preferred(request());
+            Cookie langCookie = request().cookies().get(messagesApi().langCookieName());
+            Lang cookieLang = langCookie == null ? null : new Lang(play.api.i18n.Lang.apply(langCookie.value()));
+            LinkedList<Lang> langs = Lists.newLinkedList(request().acceptLanguages());
+            if (cookieLang != null) {
+                langs.addFirst(cookieLang);
+            }
+            if (lang != null) {
+                langs.addFirst(lang);
+            }
+            return messagesApi().preferred(langs);
         }
 
         /**
@@ -560,6 +576,11 @@ public class Http {
         String getHeader(String headerName);
 
         /**
+         * Checks if the request has a body.
+         */
+        boolean hasBody();
+
+        /**
          * Checks if the request has the header.
          *
          * @param headerName The name of the header (case-insensitive)
@@ -580,6 +601,13 @@ public class Http {
          * @return The request charset, which comes from the content type header, if it exists.
          */
         Optional<String> charset();
+
+        /**
+         * The X509 certificate chain presented by a client during SSL requests.
+         *
+         * @return The chain of X509Certificates used for the request if the request is secure and the server supports it.
+         */
+        Optional<List<X509Certificate>> clientCertificateChain();
 
         /**
          * @return the tags for the request
@@ -686,6 +714,13 @@ public class Http {
         }
 
         /**
+         * @return whether the underlying request has a body.
+         */
+        public boolean hasBody() {
+            return underlying != null && underlying.hasBody();
+        }
+
+        /**
          * @return the username
          */
         public String username() {
@@ -781,6 +816,16 @@ public class Http {
          * @return the modified builder
          */
         protected RequestBuilder body(RequestBody body) {
+            if (body == null || body.as(Object.class) == null) {
+                // assume null signifies no body; RequestBody is a wrapper for the actual body content
+                this.headers.remove(HeaderNames.CONTENT_LENGTH);
+                this.headers.remove(HeaderNames.TRANSFER_ENCODING);
+            } else {
+                int length = body.asBytes().length();
+                if (header(HeaderNames.TRANSFER_ENCODING) == null) {
+                    this.headers.put(HeaderNames.CONTENT_LENGTH, new String[] {Integer.toString(length)});
+                }
+            }
             this.body = body;
             return this;
         }
@@ -830,6 +875,29 @@ public class Http {
                 arrayValues.put(entry.getKey(), new String[]{entry.getValue()});
             }
             return bodyFormArrayValues(arrayValues);
+        }
+
+        /**
+         * Set a Multipart Form url encoded body to this request.
+         *
+         * @param data the multipart-form paramters
+         * @param mat a Akka Streams Materializer
+         * @return the modified builder
+         */
+        public RequestBuilder bodyMultipart(List<MultipartFormData.Part<Source<ByteString, ?>>> data, Materializer mat) {
+            String boundary = MultipartFormatter.randomBoundary();
+            try {
+                ByteString materializedData = MultipartFormatter
+                        .transform(Source.from(data), boundary)
+                        .runWith(Sink.reduce(ByteString::concat), mat)
+                        .toCompletableFuture()
+                        .get();
+
+                play.api.mvc.RawBuffer buffer = new play.api.mvc.RawBuffer(materializedData.size(), materializedData);
+                return body(new RequestBody(JavaParsers.toJavaRaw(buffer)), MultipartFormatter.boundaryToContentType(boundary));
+            } catch (InterruptedException | ExecutionException e) {
+                throw new RuntimeException("Failure while materializing Multipart/Form Data");
+            }
         }
 
         /**
@@ -905,7 +973,8 @@ public class Http {
                 mapListToScala(splitQuery()),
                 buildHeaders(),
                 remoteAddress,
-                secure));
+                secure,
+                OptionConverters.toScala(clientCertificateChain.map(lst -> scala.collection.JavaConversions.asScalaBuffer(lst).toSeq()))));
         }
 
         // -------------------
@@ -919,6 +988,7 @@ public class Http {
         protected String version;
         protected Map<String, String[]> headers = new HashMap<>();
         protected String remoteAddress;
+        protected Optional<List<X509Certificate>> clientCertificateChain = Optional.empty();
 
         /**
          * @return the id of the request
@@ -1256,10 +1326,27 @@ public class Http {
             return this;
         }
 
+        /**
+         * @return the client X509Certificates if they have been set
+         */
+        public Optional<List<X509Certificate>> clientCertificateChain() {
+            return clientCertificateChain;
+        }
+
+        /**
+         *
+         * @param clientCertificateChain sets the X509Certificates to use
+         * @return the builder instance
+         */
+        public RequestBuilder clientCertificateChain(List<X509Certificate> clientCertificateChain) {
+            this.clientCertificateChain = Optional.ofNullable(clientCertificateChain);
+            return this;
+        }
+
         protected Map<String, List<String>> splitQuery() {
             try {
                 Map<String, List<String>> query_pairs = new LinkedHashMap<String, List<String>>();
-                String query = uri.getQuery();
+                String query = uri.getRawQuery();
                 if (query == null) {
                     return new HashMap<>();
                 }
@@ -1268,7 +1355,7 @@ public class Http {
                     int idx = pair.indexOf("=");
                     String key = idx > 0 ? URLDecoder.decode(pair.substring(0, idx), "UTF-8") : pair;
                     if (!query_pairs.containsKey(key)) {
-                        query_pairs.put(key, new LinkedList<String>());
+                        query_pairs.put(key, new LinkedList<>());
                     }
                     String value = idx > 0 && pair.length() > idx + 1 ? URLDecoder.decode(pair.substring(idx + 1), "UTF-8") : null;
                     query_pairs.get(key).add(value);
@@ -1367,10 +1454,14 @@ public class Http {
             }
         }
 
+        public static interface Part<A> {
+
+        }
+
         /**
          * A file part.
          */
-        public static class FilePart<A> {
+        public static class FilePart<A> implements Part<A> {
 
             final String key;
             final String filename;
@@ -1418,6 +1509,35 @@ public class Http {
              */
             public A getFile() {
                 return file;
+            }
+
+        }
+
+        public static class DataPart implements Part<Source<ByteString, ?>> {
+            private final String key;
+            private final String value;
+
+            public DataPart(String key, String value) {
+                this.key = key;
+                this.value = value;
+            }
+
+            /**
+             * The part name.
+             *
+             * @return the part name
+             */
+            public String getKey() {
+                return key;
+            }
+
+            /**
+             * The part value.
+             *
+             * @return the part value
+             */
+            public String getValue() {
+                return value;
             }
 
         }
@@ -1617,6 +1737,12 @@ public class Http {
          * @param value The value of the header, must not be null
          */
         public void setHeader(String name, String value) {
+            if (name == null) {
+                throw new NullPointerException("Header name cannot be null!");
+            }
+            if (value == null) {
+                throw new NullPointerException("Header value cannot be null!");
+            }
             this.headers.put(name, value);
         }
 
@@ -2142,9 +2268,9 @@ public class Http {
      * Defines all standard HTTP status codes.
      */
     public static interface Status {
-
         int CONTINUE = 100;
         int SWITCHING_PROTOCOLS = 101;
+
         int OK = 200;
         int CREATED = 201;
         int ACCEPTED = 202;
@@ -2152,6 +2278,8 @@ public class Http {
         int NO_CONTENT = 204;
         int RESET_CONTENT = 205;
         int PARTIAL_CONTENT = 206;
+        int MULTI_STATUS = 207;
+
         int MULTIPLE_CHOICES = 300;
         int MOVED_PERMANENTLY = 301;
         int FOUND = 302;
@@ -2160,6 +2288,7 @@ public class Http {
         int USE_PROXY = 305;
         int TEMPORARY_REDIRECT = 307;
         int PERMANENT_REDIRECT = 308;
+
         int BAD_REQUEST = 400;
         int UNAUTHORIZED = 401;
         int PAYMENT_REQUIRED = 402;
@@ -2181,13 +2310,16 @@ public class Http {
         int UNPROCESSABLE_ENTITY = 422;
         int LOCKED = 423;
         int FAILED_DEPENDENCY = 424;
+        int UPGRADE_REQUIRED = 426;
         int TOO_MANY_REQUESTS = 429;
+
         int INTERNAL_SERVER_ERROR = 500;
         int NOT_IMPLEMENTED = 501;
         int BAD_GATEWAY = 502;
         int SERVICE_UNAVAILABLE = 503;
         int GATEWAY_TIMEOUT = 504;
         int HTTP_VERSION_NOT_SUPPORTED = 505;
+        int INSUFFICIENT_STORAGE = 507;
     }
 
     /** Common HTTP MIME types */

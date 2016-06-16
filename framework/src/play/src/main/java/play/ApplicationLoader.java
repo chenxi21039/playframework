@@ -1,11 +1,12 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import com.typesafe.config.Config;
 import play.core.SourceMapper;
 import play.core.DefaultWebCommands;
 import play.libs.Scala;
@@ -23,7 +24,7 @@ import play.libs.Scala;
  * Out of the box Play provides a Java and Scala default implementation based on Guice. The Java implementation is the
  * {@link play.inject.guice.GuiceApplicationLoader} and the Scala implementation is {@link play.api.inject.guice.GuiceApplicationLoader}.
  *
- * A custom application loader can be configured using the `application.loader` configuration property.
+ * A custom application loader can be configured using the `play.application.loader` configuration property.
  * Implementations must define a no-arg constructor.
  */
 public interface ApplicationLoader {
@@ -103,8 +104,20 @@ public interface ApplicationLoader {
      *
      * @return the initial configuration
      */
+    @Deprecated
     public Configuration initialConfiguration() {
         return new Configuration(underlying.initialConfiguration());
+    }
+
+    /**
+     * Get the configuration from the context. This configuration is not necessarily the same
+     * configuration used by the application, as the ApplicationLoader may, through it's own
+     * mechanisms, modify it or completely ignore it.
+     *
+     * @return the initial configuration
+     */
+    public Config initialConfig() {
+      return underlying.initialConfiguration().underlying();
     }
 
     /**
@@ -128,6 +141,7 @@ public interface ApplicationLoader {
      * @param initialConfiguration the configuration to use in the created context
      * @return the created context
      */
+    @Deprecated
     public Context withConfiguration(Configuration initialConfiguration) {
         play.api.ApplicationLoader.Context scalaContext = new play.api.ApplicationLoader.Context(
            underlying.environment(),
@@ -135,6 +149,21 @@ public interface ApplicationLoader {
            underlying.webCommands(),
            initialConfiguration.getWrappedConfiguration());
         return new Context(scalaContext);
+    }
+
+    /**
+     * Create a new context with a different configuration.
+     *
+     * @param initialConfiguration the configuration to use in the created context
+     * @return the created context
+     */
+    public Context withConfig(Config initialConfiguration) {
+      play.api.ApplicationLoader.Context scalaContext = new play.api.ApplicationLoader.Context(
+          underlying.environment(),
+          underlying.sourceMapper(),
+          underlying.webCommands(),
+          new play.api.Configuration(initialConfiguration));
+      return new Context(scalaContext);
     }
 
     // The following static methods are on the Context inner class rather

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.api.libs
 
@@ -34,10 +34,7 @@ object MimeTypes {
   def applicationTypes: Map[String, String] = play.api.Play.privateMaybeApplication.flatMap { application =>
     application.configuration.getConfig("mimetype").map { config =>
       config.subKeys.map { key =>
-        (key, config.getString(key))
-      }.collect {
-        case ((key, Some(value))) =>
-          (key, value)
+        key -> config.get[String](key)
       }.toMap
     }
   }.getOrElse(Map.empty)

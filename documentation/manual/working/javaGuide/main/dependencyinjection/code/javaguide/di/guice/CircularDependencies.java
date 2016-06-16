@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package javaguide.di.guice;
 
@@ -11,13 +11,19 @@ class CircularDependencies {
 class NoProvider {
 //#circular
 public class Foo {
-  @Inject Bar bar;
+  @Inject public Foo(Bar bar) {
+    //...
+  }
 }
 public class Bar {
-  @Inject Baz baz;
+  @Inject public Bar(Baz baz) {
+    // ...
+  }
 }
 public class Baz {
-  @Inject Foo foo;
+  @Inject public Baz(Foo foo) {
+    // ...
+  }
 }
 //#circular
 }
@@ -25,13 +31,19 @@ public class Baz {
 class WithProvider {
 //#circular-provider
 public class Foo {
-  @Inject Bar bar;
+  @Inject public Foo(Bar bar) {
+    // ...
+  }
 }
 public class Bar {
-  @Inject Baz baz;
+  @Inject public Bar(Baz baz) {
+    // ...
+  }
 }
 public class Baz {
-  @Inject Provider<Foo> fooProvider;
+  @Inject public Baz(Provider<Foo> fooProvider) {
+    // ...
+  }
 }
 //#circular-provider
 }

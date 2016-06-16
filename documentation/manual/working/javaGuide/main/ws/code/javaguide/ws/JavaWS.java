@@ -1,12 +1,17 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package javaguide.ws;
 
 import javaguide.testhelpers.MockJavaAction;
 
 // #ws-imports
+import org.slf4j.Logger;
+import play.api.libs.ws.ahc.AhcCurlRequestLogger;
 import play.libs.ws.*;
+
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 // #ws-imports
@@ -16,7 +21,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import play.libs.Json;
 // #json-imports
 
+// #multipart-imports
+import play.mvc.Http.MultipartFormData.*;
+// #multipart-imports
+
 import play.libs.ws.ahc.AhcWSClient;
+import play.mvc.Http;
 import scala.compat.java8.FutureConverters;
 
 import java.io.*;
@@ -112,6 +122,18 @@ public class JavaWS {
             ws.url(url).post(json);
             // #ws-post-json
 
+            // #ws-post-multipart
+            ws.url(url).post(Source.single(new DataPart("hello", "world")));
+            // #ws-post-multipart
+
+            // #ws-post-multipart2
+            Source<ByteString, ?> file = FileIO.fromFile(new File("hello.txt"));
+            FilePart<Source<ByteString, ?>> fp = new FilePart<>("hello", "hello.txt", "text/plain", file);
+            DataPart dp = new DataPart("key", "value");
+
+            ws.url(url).post(Source.from(Arrays.asList(fp, dp)));
+            // #ws-post-multipart2
+
             String value = IntStream.range(0,100).boxed().
                 map(i -> "abcdefghij").reduce("", (a,b) -> a + b);
             ByteString seedValue = ByteString.fromString(value);
@@ -202,8 +224,8 @@ public class JavaWS {
                     // Get the content type
                     String contentType =
                             Optional.ofNullable(responseHeaders.getHeaders().get("Content-Type"))
-                                    .map(contentTypes -> contentTypes.get(0)).
-                                    orElse("application/octet-stream");
+                                    .map(contentTypes -> contentTypes.get(0))
+                                    .orElse("application/octet-stream");
 
                     // If there's a content length, send that, otherwise return the body chunked
                     Optional<String> contentLength = Optional.ofNullable(responseHeaders.getHeaders()
@@ -232,6 +254,7 @@ public class JavaWS {
                 ws.url(url).setMethod("PUT").setBody("some body").stream();
             //#stream-put
         }
+
         public void patternExamples() {
             String urlOne = "http://localhost:3333/one";
             // #ws-composition
@@ -327,5 +350,28 @@ public class JavaWS {
                     .thenApply(response -> ok("Number of comments: " + response.asJson().findPath("count").asInt()));
         }
         // #composed-call
+    }
+
+    public static class Controller3 extends MockJavaAction {
+
+        @Inject
+        private WSClient ws;
+
+        // #ws-request-filter
+        public CompletionStage<Result> index() {
+            Logger logger = org.slf4j.LoggerFactory.getLogger("testLogger");
+            WSRequestFilter filter = executor -> {
+                WSRequestExecutor next = request -> {
+                    logger.debug("url = {}", request.getUrl());
+                    return executor.apply(request);
+                };
+                return next;
+            };
+
+            return ws.url(feedUrl).withRequestFilter(filter).get().thenApply(response ->
+                    ok("Feed title: " + response.asJson().findPath("title").asText())
+            );
+        }
+        // #ws-request-filter
     }
 }

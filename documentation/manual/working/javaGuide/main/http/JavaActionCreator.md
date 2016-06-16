@@ -1,4 +1,4 @@
-<!--- Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com> -->
+<!--- Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com> -->
 # Intercepting HTTP requests
 
 Play's Java APIs provide two ways of intercepting action calls. The first is called `ActionCreator`, which provides a `createAction` method that is used to create the initial action used in action composition. It handles calling the actual method for your action, which allows you to intercept requests.
@@ -7,14 +7,14 @@ The second way is to implement your own `HttpRequestHandler`, which is the prima
 
 ## Action creators
 
-The [`ActionCreator`](api/java/play/http/ActionCreator.html) interface has two methods that can be implemented: 
+The [`ActionCreator`](api/java/play/http/ActionCreator.html) interface has two methods that can be implemented:
 
-* `createAction`: Takes the request and the controller's action method associated with the passed request.
-*  `wrapAction`: Takes the action to be run and allows for a final global interceptor to be added to the action.
+* `createAction`: Takes the request and the controller's action method associated with the passed request. The action can either be the first or the last action depending on the configuration setting `play.http.actionComposition.executeActionCreatorActionFirst`.
+*  `wrapAction`: Takes the action to be run and allows for a final global interceptor to be added to the action. This method is deprecated since the same can be achieved using `createAction` and the above setting.
 
 There is also a [`DefaultActionCreator`](api/java/play/http/ActionCreator.html) interface you can extend with default implementations.
 
-> **Note:** If you are providing an implementation of `wrapAction` because you need to apply a cross cutting concern to an action before it is executed, creating a [[filter|JavaHttpFilters]] is a more idiomatic way of achieving the same.
+> **Note:** If you are implementing a custom ActionCreator because you need to apply a cross cutting concern to an action before it is executed, creating a [[filter|JavaHttpFilters]] is a more idiomatic way of achieving the same.
 
 A custom action creator can be supplied by creating a class in the root package called `ActionCreator` that implements `play.http.ActionCreator`, for example:
 
@@ -34,7 +34,7 @@ Providing a custom `HttpRequestHandler` should be a last course of action. Most 
 
 ### Implementing a custom request handler
 
-The `HttpRequestHandler` trait has one method to be implemented, `handlerForRequest`.  This takes the request to get a handler for, and returns a `HandlerForRequest` instance containing a `RequestHeader` and a `Handler`.
+The `HttpRequestHandler` interface has one method to be implemented, `handlerForRequest`.  This takes the request to get a handler for, and returns a `HandlerForRequest` instance containing a `RequestHeader` and a `Handler`.
 
 The reason why a request header is returned is so that information, such as routing information, can be added to the request. In this way, the router is able to tag requests with routing information, such as which route matched the request, which can be useful for monitoring or even for injecting cross cutting functionality.
 

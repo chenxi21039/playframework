@@ -1,4 +1,4 @@
-<!--- Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com> -->
+<!--- Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com> -->
 # Play 2.4 Migration Guide
 
 This is a guide for migrating from Play 2.3 to Play 2.4. If you need to migrate from an earlier version of Play then you must first follow the [[Play 2.3 Migration Guide|Migration23]].
@@ -197,7 +197,7 @@ While Play 2.4 won't force you to use the dependency injected versions of compon
 | [`Akka`](api/scala/play/api/libs/concurrent/Akka$.html) | N/A | No longer needed, just declare a dependency on `ActorSystem` |
 | [`WS`](api/scala/play/api/libs/ws/WS$.html) | [`WSClient`](api/scala/play/api/libs/ws/WSClient.html) | |
 | [`Crypto`](api/scala/play/api/libs/Crypto$.html) | [`Crypto`](api/scala/play/api/libs/Crypto.html) | |
-| [`GlobalSettings`](api/scala/play/api/GlobalSettings.html) | [`HttpErrorHandler`](api/scala/play/api/http/HttpErrorHandler.html), [`HttpRequestHandler`](api/scala/play/api/http/HttpRequestHandler.html), and [`HttpFilters`](api/scala/play/api/http/HttpFilters.html)| Read the details in the [[GlobalSettings|Migration24#GlobalSettings]] section below. |
+| `GlobalSettings` | [`HttpErrorHandler`](api/scala/play/api/http/HttpErrorHandler.html), [`HttpRequestHandler`](api/scala/play/api/http/HttpRequestHandler.html), and [`HttpFilters`](api/scala/play/api/http/HttpFilters.html)| Read the details in the [[GlobalSettings|Migration24#GlobalSettings]] section below. |
 
 #### Java
 
@@ -211,7 +211,7 @@ While Play 2.4 won't force you to use the dependency injected versions of compon
 | [`Akka`](api/java/play/libs/Akka.html) | N/A | No longer needed, just declare a dependency on `ActorSystem` |
 | [`WS`](api/java/play/libs/ws/WS.html) | [`WSClient`](api/java/play/libs/ws/WSClient.html) | |
 | [`Crypto`](api/java/play/libs/Crypto.html) | [`Crypto`](api/java/play/libs/Crypto.html) | The old static methods have been removed, an instance can statically be accessed using `play.Play.application().injector().instanceOf(Crypto.class)` |
-| [`GlobalSettings`](api/java/play/GlobalSettings.html) | [`HttpErrorHandler`](api/java/play/http/HttpErrorHandler.html), [`HttpRequestHandler`](api/java/play/http/HttpRequestHandler.html), and [`HttpFilters`](api/java/play/http/HttpFilters.html)| Read the details in the [[GlobalSettings|Migration24#GlobalSettings]] section below. |
+| `GlobalSettings` | [`HttpErrorHandler`](api/java/play/http/HttpErrorHandler.html), [`HttpRequestHandler`](api/java/play/http/HttpRequestHandler.html), and [`HttpFilters`](api/java/play/http/HttpFilters.html)| Read the details in the [[GlobalSettings|Migration24#GlobalSettings]] section below. |
 
 ### GlobalSettings
 
@@ -417,7 +417,7 @@ The reverse ref router used in Java tests has been removed. Any call to `Helpers
 
 ## Java TimeoutExceptions
 
-If you use the Java API, the [`F.Promise`](api/java/play/libs/F.Promise.html) class now throws unchecked [`F.PromiseTimeoutException`s](api/java/play/libs/F.PromiseTimeoutException.html) instead of Java's checked [`TimeoutException`s](http://docs.oracle.com/javase/8/docs/api/java/util/concurrent/TimeoutException.html). The `TimeoutExceptions`s which were previously used were not properly declared with the `throws` keyword. Rather than changing the API to use the `throws` keyword, which would mean users would have to declare `throws` on their methods, the exception was changed to a new unchecked type instead. See [#1227](https://github.com/playframework/playframework/pull/1227) for more information.
+If you use the Java API, the `F.Promise` class now throws unchecked [`F.PromiseTimeoutException`s](api/java/play/libs/F.PromiseTimeoutException.html) instead of Java's checked [`TimeoutException`s](http://docs.oracle.com/javase/8/docs/api/java/util/concurrent/TimeoutException.html). The `TimeoutExceptions`s which were previously used were not properly declared with the `throws` keyword. Rather than changing the API to use the `throws` keyword, which would mean users would have to declare `throws` on their methods, the exception was changed to a new unchecked type instead. See [#1227](https://github.com/playframework/playframework/pull/1227) for more information.
 
 | Old API | New API | Comments |
 | ------- | --------| -------- |
@@ -541,7 +541,7 @@ The API should be backward compatible with your code using Play 2.3 so there is 
 
 ## Distribution
 
-Previously, Play added all the resources to the the `conf` directory in the distribution, but didn't add the `conf` directory to the classpath.  Now Play adds the `conf` directory to the classpath by default.
+Previously, Play added all the resources to the `conf` directory in the distribution, but didn't add the `conf` directory to the classpath.  Now Play adds the `conf` directory to the classpath by default.
 
 This can be turned off by setting `PlayKeys.externalizeResources := false`, which will cause no `conf` directory to be created in the distribution, and it will not be on the classpath.  The contents of the applications `conf` directory will still be on the classpath by virtue of the fact that it's included in the applications jar file.
 

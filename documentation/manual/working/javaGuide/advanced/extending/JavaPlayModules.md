@@ -1,4 +1,4 @@
-<!--- Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com> -->
+<!--- Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com> -->
 # Writing Play Modules
 
 > **Note:** This page covers the new [[module system|JavaDependencyInjection#Play-libraries]] to add new functionality to Play.
@@ -25,7 +25,8 @@ For more information, see the "Create a Module class" section of [[Plugins to Mo
 
 ## Module registration
 
-Play modules are registered through Play's configuration system by adding the Play module into `reference.conf`:
+By default, Play will load any class called `Module` that is defined in the root package (the "app" directory) or
+you can define them explicitly inside the `reference.conf` or the `application.conf`:
 
 ```
 play.modules.enabled += "modules.MyModule"

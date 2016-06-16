@@ -1,12 +1,9 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.libs;
 
 import java.io.*;
-import java.util.*;
-
-import org.yaml.snakeyaml.*;
 import org.yaml.snakeyaml.constructor.*;
 import play.Application;
 import play.api.Play;

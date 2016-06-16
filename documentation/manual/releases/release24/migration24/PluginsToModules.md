@@ -1,5 +1,7 @@
-<!--- Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com> -->
+<!--- Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com> -->
 # Migrating Plugin to Module
+
+> **Note:** The deprecated `play.Plugin` system is removed as of 2.5.x.
 
 If you have implemented a Play plugin, please consider migrating your implementation to use [`play.api.inject.Module`](api/scala/play/api/inject/Module.html), instead of the deprecated Java `play.Plugin` or Scala `play.api.Plugin` types.
 
@@ -13,26 +15,25 @@ With the old `Plugin` API, you were required to provide a `play.plugins` file co
 
 Start by creating a class that inherits from `play.api.inject.Module`, and provide an implementation for the `bindings` method. In this method you should wire types to concrete implementation so that components provided by your module can be injected in users' code, or in other modules. Next follows an example.
 
-In Java
+In Java:
 
 @[module-decl](code24/MyModule.java)
 
-In Scala
+In Scala:
 
 @[module-decl](code24/MyModule.scala)
 
-
 Note that if a component you are defining requires another component, you should simply add the required component as a constructor's dependency, prepending the constructor with the `@javax.inject.Inject` annotation. The DI framework will then take care of the rest.
 
-> Note that if a component B requires A, then B will be initialized only after A is initialized.
+> **Note:** if a component B requires A, then B will be initialized only after A is initialized.
 
 Next follows an example of a component named `MyComponentImpl` requiring the `ApplicationLifecycle` component.
 
-In Java
+In Java:
 
 @[components-decl](code24/MyComponent.java)
 
-In Scala
+In Scala:
 
 @[components-decl](code24/MyComponent.scala)
 
@@ -45,8 +46,9 @@ play.modules.enabled  += "my.module.MyModule"
 ```
 
 If you are working on a library that will be used by other projects (including sub projects), add the above line in your `reference.conf` file (if you don't have a `reference.conf` yet, create one and place it under `src/main/resources`). Otherwise, if it's in an end Play project, it should be in `application.conf`.
+If it's and end Play project, you could also create a class called `Module` and put it in the root package (the "app" directory).
 
-> Note: If you are working on a library, it is highly discouraged to use `play.modules.disabled` to disable modules, as it can lead to undetermistic results when modules are loaded by the application (see [this issue](https://github.com/playframework/play-slick/issues/245) for reasons on why you should not touch `play.modules.disabled`). In fact, `play.modules.disabled` is intended for end users to be able to override what modules are enabled by default.
+> **Note:** If you are working on a library, it is highly discouraged to use `play.modules.disabled` to disable modules, as it can lead to nondeterministic results when modules are loaded by the application (see [this issue](https://github.com/playframework/play-slick/issues/245) for reasons on why you should not touch `play.modules.disabled`). In fact, `play.modules.disabled` is intended for end users to be able to override what modules are enabled by default.
 
 ### Compile-time DI
 

@@ -1,15 +1,9 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.mvc;
 
 import org.junit.Test;
-import play.api.Application;
-import play.api.Play;
-import play.api.inject.guice.GuiceApplicationBuilder;
-import play.mvc.Http.Context;
-import play.mvc.Http.Request;
-import play.mvc.Http.RequestBuilder;
 
 import static org.junit.Assert.*;
 

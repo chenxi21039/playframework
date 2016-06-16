@@ -1,5 +1,5 @@
 //
-// Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+// Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
 //
 
 import play.sbt.activator.Templates._
@@ -24,7 +24,8 @@ templates := {
     )
   }
   Seq(
-    template("play-scala", "scala", "play-common"),
+    // Disabled for due to binary compatibility/circular dependency issue with scalatestplus-play
+    // template("play-scala", "scala", "play-common"),
     template("play-java", "java", "play-common"),
     template("play-scala-intro", "scala"),
     template("play-java-intro", "java")
@@ -49,17 +50,18 @@ templateParameters := Map(
   "PLAY_VERSION" -> version.value,
   "SCALA_VERSION" -> scalaVersion.value,
   "PLAY_DOCS_URL" -> playDocsUrl(version.value),
-  "SBT_VERSION" -> "0.13.9",
+  "SBT_VERSION" -> "0.13.11",
   "COFFEESCRIPT_VERSION" -> "1.0.0",
   "LESS_VERSION" -> "1.1.0",
   "JSHINT_VERSION" -> "1.0.3",
   "DIGEST_VERSION" -> "1.1.0",
-  "RJS_VERSION" -> "1.0.7",
+  "RJS_VERSION" -> "1.0.8",
   "MOCHA_VERSION" -> "1.1.0",
+  "SASSIFY_VERSION" -> "1.4.4",
   "ENHANCER_VERSION" -> "1.1.0",
   "EBEAN_VERSION" -> "1.0.0",
-  "PLAY_SLICK_VERSION" -> "1.1.0",
-  "SCALATESTPLUS_PLAY_VERSION" -> "1.5.0-RC1",
+  "PLAY_SLICK_VERSION" -> "2.0.0",
+  "SCALATESTPLUS_PLAY_VERSION" -> "1.5.1",
   "TEMPLATE_NAME_SUFFIX" -> templateNameAndTitle(version.value)._1,
   "TEMPLATE_TITLE_SUFFIX" -> templateNameAndTitle(version.value)._2
 )

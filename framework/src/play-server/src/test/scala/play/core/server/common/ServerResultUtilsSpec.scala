@@ -1,17 +1,13 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.core.server.common
 
 import org.specs2.mutable.Specification
-import play.api._
 import play.api.mvc._
 import play.api.mvc.Results._
-import play.api.http.HeaderNames._
-import play.api.libs.iteratee._
-import scala.concurrent.{ Future, Promise }
 
-object ServerResultUtilsSpec extends Specification with IterateeSpecification {
+object ServerResultUtilsSpec extends Specification {
 
   case class CookieRequestHeader(cookie: Option[(String, String)]) extends RequestHeader {
     def id = 1
@@ -23,6 +19,7 @@ object ServerResultUtilsSpec extends Specification with IterateeSpecification {
     def queryString = Map()
     def remoteAddress = ""
     def secure = false
+    override def clientCertificateChain = None
     val headers = new Headers(cookie.map { case (name, value) => "Cookie" -> s"$name=$value" }.toSeq)
   }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 
 import sbt.ScriptedPlugin._
@@ -198,12 +198,8 @@ object PlayBuild extends Build {
       TwirlKeys.templateFormats := Map("twirl" -> "play.routes.compiler.ScalaFormat")
   )
 
-  lazy val IterateesProject = PlayCrossBuiltProject("Play-Iteratees", "iteratees")
-    .settings(libraryDependencies ++= iterateesDependencies)
-
   lazy val StreamsProject = PlayCrossBuiltProject("Play-Streams", "play-streams")
     .settings(libraryDependencies ++= streamsDependencies)
-    .dependsOn(IterateesProject)
 
   lazy val FunctionalProject = PlayCrossBuiltProject("Play-Functional", "play-functional")
 
@@ -211,7 +207,7 @@ object PlayBuild extends Build {
 
   lazy val JsonProject = PlayCrossBuiltProject("Play-Json", "play-json")
     .settings(libraryDependencies ++= jsonDependencies(scalaVersion.value))
-    .dependsOn(IterateesProject, FunctionalProject, DataCommonsProject)
+    .dependsOn(FunctionalProject, DataCommonsProject)
 
   lazy val PlayExceptionsProject = PlayNonCrossBuiltProject("Play-Exceptions", "play-exceptions")
 
@@ -247,7 +243,6 @@ object PlayBuild extends Build {
     ).settings(Docs.playdocSettings: _*)
      .dependsOn(
       BuildLinkProject,
-      IterateesProject % "test->test;compile->compile",
       JsonProject,
       PlayNettyUtilsProject,
       StreamsProject
@@ -257,7 +252,7 @@ object PlayBuild extends Build {
     .settings(libraryDependencies ++= playServerDependencies)
     .dependsOn(
       PlayProject,
-      IterateesProject % "test->test;compile->compile"
+      PlayGuiceProject % "test"
     )
 
   lazy val PlayNettyServerProject = PlayCrossBuiltProject("Play-Netty-Server", "play-netty-server")
@@ -290,7 +285,7 @@ object PlayBuild extends Build {
   lazy val PlayJavaJdbcProject = PlayCrossBuiltProject("Play-Java-JDBC", "play-java-jdbc")
     .settings(libraryDependencies ++= javaJdbcDeps)
     .dependsOn(PlayJdbcProject, PlayJavaProject)
-    .dependsOn(PlaySpecs2Project % "test")
+    .dependsOn(PlaySpecs2Project % "test", PlayGuiceProject % "test")
 
   lazy val PlayJpaProject = PlayCrossBuiltProject("Play-Java-JPA", "play-java-jpa")
     .settings(libraryDependencies ++= jpaDeps)
@@ -302,7 +297,10 @@ object PlayBuild extends Build {
     .settings(
       libraryDependencies ++= testDependencies,
       parallelExecution in Test := false
-    ).dependsOn(PlayNettyServerProject)
+    ).dependsOn(
+      PlayGuiceProject,
+      PlayNettyServerProject
+    )
 
   lazy val PlaySpecs2Project = PlayCrossBuiltProject("Play-Specs2", "play-specs2")
     .settings(
@@ -312,14 +310,24 @@ object PlayBuild extends Build {
 
   lazy val PlayJavaProject = PlayCrossBuiltProject("Play-Java", "play-java")
     .settings(libraryDependencies ++= javaDeps ++ javaTestDeps)
-    .dependsOn(PlayProject % "compile;test->test")
-    .dependsOn(PlayTestProject % "test")
+    .dependsOn(
+      PlayProject % "compile;test->test",
+      PlayTestProject % "test",
+      PlaySpecs2Project % "test",
+      PlayGuiceProject % "test"
+    )
 
   lazy val PlayDocsProject = PlayCrossBuiltProject("Play-Docs", "play-docs")
     .settings(Docs.settings: _*)
     .settings(
       libraryDependencies ++= playDocsDependencies
     ).dependsOn(PlayNettyServerProject)
+
+  lazy val PlayGuiceProject = PlayCrossBuiltProject("Play-Guice", "play-guice")
+    .settings(libraryDependencies ++= guiceDeps ++ specsBuild.map(_ % "test"))
+    .dependsOn(
+      PlayProject % "compile;test->test"
+    )
 
   lazy val SbtPluginProject = PlaySbtPluginProject("SBT-Plugin", "sbt-plugin")
     .settings(
@@ -369,7 +377,7 @@ object PlayBuild extends Build {
 
   lazy val PlayLogback = PlayCrossBuiltProject("Play-Logback", "play-logback")
     .settings(
-      libraryDependencies ++= logback,
+      libraryDependencies += logback,
       parallelExecution in Test := false,
       // quieten deprecation warnings in tests
       scalacOptions in Test := (scalacOptions in Test).value diff Seq("-deprecation")
@@ -422,8 +430,8 @@ object PlayBuild extends Build {
 
   lazy val publishedProjects = Seq[ProjectReference](
     PlayProject,
+    PlayGuiceProject,
     BuildLinkProject,
-    IterateesProject,
     FunctionalProject,
     DataCommonsProject,
     JsonProject,

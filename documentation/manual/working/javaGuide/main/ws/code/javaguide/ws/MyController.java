@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package javaguide.ws;
 
@@ -12,7 +12,6 @@ import akka.util.ByteString;
 
 import play.mvc.*;
 import play.libs.ws.*;
-import play.libs.F.Promise;
 
 import scala.compat.java8.FutureConverters;
 

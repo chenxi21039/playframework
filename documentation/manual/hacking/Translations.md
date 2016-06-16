@@ -1,4 +1,4 @@
-<!--- Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com> -->
+<!--- Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com> -->
 # Translating the Play Documentation
 
 Play 2.3+ provides infrastructure to aid documentation translators in translating the Play documentation and keeping it up to date.
@@ -39,7 +39,7 @@ translation-project
 `build.properties` should contain the SBT version, ie:
 
 ```
-sbt.version=0.13.9
+sbt.version=0.13.11
 ```
 
 `plugins.sbt` should include the Play docs sbt plugin, ie:
@@ -75,7 +75,7 @@ Copy a markdown page from the Play repository into your project.  It is importan
 
 For example, if you choose to start with `manual/scalaGuide/main/http/ScalaActions.md`, then you need to ensure that it is in `manual/scalaGuide/main/http/ScalaActions.md` in your project.
 
-> **Note:** It may be tempting to start by copying the entire Play manual into your project.  If you do do this, make sure you only copy the markdown files, that you don't copy the code samples as well.  If you copy the code samples, they will override the code samples from Play, and you will lose the benefit of having those code samples automatically maintained for you.
+> **Note:** It may be tempting to start by copying the entire Play manual into your project.  If you do this, make sure you only copy the markdown files, that you don't copy the code samples as well.  If you copy the code samples, they will override the code samples from Play, and you will lose the benefit of having those code samples automatically maintained for you.
 
 Now you can start translating the file.
 

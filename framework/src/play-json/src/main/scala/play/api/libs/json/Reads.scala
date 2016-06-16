@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.api.libs.json
 
@@ -457,7 +457,7 @@ trait DefaultReads extends LowPriorityDefaultReads {
    * @param parsing Argument to instantiate date/time parser. Actually either a pattern (string) or a formatter (`java.time.format.DateTimeFormatter`)
    * @param corrector a simple string transformation function that can be used to transform input String before parsing. Useful when standards are not exactly respected and require a few tweaks. Function `identity` can be passed if no correction is needed.
    * @param p Typeclass instance based on `parsing`
-   * @see [[TemporalFormatter]]
+   * @see [[DefaultWrites.TemporalFormatter]]
    *
    * {{{
     * import play.api.libs.json.Reads.offsetDateTimeReads
@@ -599,7 +599,7 @@ trait DefaultReads extends LowPriorityDefaultReads {
 
   /**
    * The default typeclass to reads `java.time.Instant` from JSON.
-   * Accepts instant formats as '2011-12-03T10:15:30', '2011-12-03T10:15:30+01:00' or '2011-12-03T10:15:30+01:00[Europe/Paris]'.
+   * Accepts instant formats as '2011-12-03T10:15:30Z', '2011-12-03T10:15:30+01:00' or '2011-12-03T10:15:30+01:00[Europe/Paris]'.
    */
   implicit val DefaultInstantReads =
     instantReads(DateTimeFormatter.ISO_DATE_TIME)

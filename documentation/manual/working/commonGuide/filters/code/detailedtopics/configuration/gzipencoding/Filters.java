@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package detailedtopics.configuration.gzipencoding;
 
@@ -12,11 +12,15 @@ import javax.inject.Inject;
 
 public class Filters implements HttpFilters {
 
+    private EssentialFilter[] filters;
+
     @Inject
-    GzipFilter gzipFilter;
+    public Filters(GzipFilter gzipFilter) {
+        filters = new EssentialFilter[] { gzipFilter.asJava() };
+    }
 
     public EssentialFilter[] filters() {
-        return new EssentialFilter[] { gzipFilter.asJava() };
+        return filters;
     }
 }
 //#filters

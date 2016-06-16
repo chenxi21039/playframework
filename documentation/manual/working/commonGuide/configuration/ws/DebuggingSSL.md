@@ -1,4 +1,4 @@
-<!--- Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com> -->
+<!--- Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com> -->
 # Debugging SSL Connections
 
 In the event that an HTTPS connection does not go through, debugging JSSE can be a hassle.
@@ -52,10 +52,10 @@ play.ws.ssl.debug = {
 
 ## Verbose Debugging
 
-To see the behavior of WS, you can configuring the SLF4J logger for debug output:
+To see the behavior of WS SSL, you can configure the SLF4J logger `play.api.libs.ws.ssl` for debug output.  For example, if you are using Logback, in `conf/logback.xml` you would configure:
 
 ```
-logger.play.api.libs.ws.ssl=DEBUG
+<logger name="play.api.libs.ws.ssl" value="DEBUG"/>
 ```
 
 ## Dynamic Debugging

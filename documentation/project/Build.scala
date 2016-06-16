@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 
 import com.typesafe.play.sbt.enhancer.PlayEnhancer
@@ -50,6 +50,8 @@ object ApplicationBuild extends Build {
       playProject("Play") % "test",
       playProject("Play-Specs2") % "test",
       playProject("Play-Java") % "test",
+      playProject("Play-Java-JPA") % "test",
+      playProject("Play-Guice") % "test",
       playProject("Play-Cache") % "test",
       playProject("Play-Java-WS") % "test",
       playProject("Filters-Helpers") % "test",

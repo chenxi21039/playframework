@@ -1,10 +1,10 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 
 import play.sbt.PlayScala
+import sbt.Keys._
 import sbt._
-import Keys._
 
 object ApplicationBuild extends Build {
 

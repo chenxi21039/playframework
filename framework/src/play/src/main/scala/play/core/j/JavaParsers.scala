@@ -1,12 +1,14 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.core.j
 
 import java.io.File
-import java.util.concurrent.Executor
+import java.util.concurrent.{ CompletionStage, Executor }
 
 import play.api.libs.Files.TemporaryFile
+
+import akka.stream.Materializer
 
 import scala.collection.JavaConverters._
 import play.api.mvc._
@@ -43,6 +45,16 @@ object JavaParsers {
     }
   }
 
-  def trampoline: Executor = play.api.libs.iteratee.Execution.Implicits.trampoline
+  def trampoline: Executor = play.core.Execution.Implicits.trampoline
 
+  /**
+   * Flattens the completion of body parser.
+   *
+   * @param underlying The completion stage of body parser.
+   * @param materializer The stream materializer
+   * @return A body parser
+   */
+  def flatten[A](underlying: CompletionStage[play.mvc.BodyParser[A]], materializer: Materializer): play.mvc.BodyParser[A] = new Flattened[A](underlying, materializer)
+
+  private class Flattened[A](underlying: CompletionStage[play.mvc.BodyParser[A]], materializer: Materializer) extends play.mvc.BodyParser.CompletableBodyParser[A](underlying, materializer) {}
 }

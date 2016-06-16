@@ -1,14 +1,16 @@
 /*
  *
- *  * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ *  * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  *
  */
 package play.api.libs.ws.ssl
 
 import org.specs2.mutable._
-
 import com.typesafe.config.ConfigFactory
-import play.api.PlayConfig
+import org.slf4j.LoggerFactory
+import play.api.Configuration
+import play.api.libs.ws.ahc.AhcConfigBuilder
+import play.api.libs.ws.ahc.AhcConfigSpec._
 import play.api.test.WithApplication
 
 object SSLConfigParserSpec extends Specification {
@@ -21,7 +23,7 @@ object SSLConfigParserSpec extends Specification {
 
     def parseThis(input: String)(implicit app: play.api.Application) = {
       val config = ConfigFactory.parseString(input).withFallback(ConfigFactory.defaultReference().getConfig("play.ws.ssl"))
-      val parser = new SSLConfigParser(PlayConfig(config), app.classloader)
+      val parser = new SSLConfigParser(Configuration(config), app.classloader)
       parser.parse()
     }
 
@@ -199,6 +201,28 @@ object SSLConfigParserSpec extends Specification {
                    |  ]
                    |}
                  """.stripMargin).must(throwAn[AssertionError])
+    }
+
+    "log a warning if ws.ssl.loose.acceptAnyCertificate is true" in {
+      import ch.qos.logback.classic.spi._
+      import ch.qos.logback.classic._
+
+      val config = ConfigFactory.parseString("loose.acceptAnyCertificate = true").withFallback(ConfigFactory.defaultReference().getConfig("play.ws.ssl"))
+      val configParser = new SSLConfigParser(Configuration(config), this.getClass.getClassLoader)
+
+      // this only works with test:test, has a different type in test:testQuick and test:testOnly!
+      val logger = configParser.logger.asInstanceOf[ch.qos.logback.classic.Logger]
+      val appender = new ch.qos.logback.core.read.ListAppender[ILoggingEvent]()
+      val lc = LoggerFactory.getILoggerFactory.asInstanceOf[LoggerContext]
+      appender.setContext(lc)
+      appender.start()
+      logger.addAppender(appender)
+      logger.setLevel(Level.WARN)
+
+      configParser.parse()
+
+      val warahcs = appender.list
+      warahcs.size must beGreaterThan(0)
     }
 
   }

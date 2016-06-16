@@ -1,5 +1,5 @@
 //
-// Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+// Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
 //
 
 name := "dist-sample"
@@ -7,6 +7,8 @@ name := "dist-sample"
 version := "1.0-SNAPSHOT"
 
 lazy val root = (project in file(".")).enablePlugins(PlayScala)
+
+libraryDependencies += guiceSupport
 
 scalaVersion := Option(System.getProperty("scala.version")).getOrElse("2.11.7")
 

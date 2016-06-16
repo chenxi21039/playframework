@@ -1,23 +1,23 @@
 /*
  *
- *  * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ *  * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  *
  */
 package play.api.libs.ws.ahc
 
 import java.security.KeyStore
 import java.security.cert.CertPathValidatorException
-import javax.inject.{ Singleton, Inject, Provider }
-
-import org.asynchttpclient.netty.ssl.JsseSslEngineFactory
-import org.slf4j.LoggerFactory
-
-import org.asynchttpclient.{ DefaultAsyncHttpClientConfig, AsyncHttpClientConfig }
-
+import javax.inject.{ Inject, Provider, Singleton }
 import javax.net.ssl._
-import play.api.{ ConfigLoader, PlayConfig, Environment, Configuration }
-import play.api.libs.ws.ssl._
+
+import io.netty.handler.ssl.SslContextBuilder
+import io.netty.handler.ssl.util.InsecureTrustManagerFactory
+import org.asynchttpclient.netty.ssl.JsseSslEngineFactory
+import org.asynchttpclient.{ AsyncHttpClientConfig, DefaultAsyncHttpClientConfig }
+import org.slf4j.LoggerFactory
 import play.api.libs.ws.WSClientConfig
+import play.api.libs.ws.ssl._
+import play.api.{ ConfigLoader, Configuration, Environment }
 
 import scala.concurrent.duration._
 
@@ -66,9 +66,8 @@ class AhcWSClientConfigParser @Inject() (wsClientConfig: WSClientConfig,
 
   def parse(): AhcWSClientConfig = {
 
-    val playConfig = PlayConfig(configuration)
     def get[A: ConfigLoader](name: String): A =
-      playConfig.getDeprecated[A](s"play.ws.ahc.$name", s"play.ws.ning.$name")
+      configuration.getDeprecated[A](s"play.ws.ahc.$name", s"play.ws.ning.$name")
 
     val maximumConnectionsPerHost = get[Int]("maxConnectionsPerHost")
     val maximumConnectionsTotal = get[Int]("maxConnectionsTotal")
@@ -82,11 +81,11 @@ class AhcWSClientConfigParser @Inject() (wsClientConfig: WSClientConfig,
     // allowPoolingConnection and allowSslConnectionPool were merged into keepAlive in AHC 2.0
     // We want one value, keepAlive, and we don't want to confuse anyone who has to migrate.
     // keepAlive
-    if (playConfig.underlying.hasPath("play.ws.ahc.keepAlive")) {
+    if (configuration.underlying.hasPath("play.ws.ahc.keepAlive")) {
       val msg = "Both allowPoolingConnection and allowSslConnectionPool have been replaced by keepAlive!"
       Seq("play.ws.ning.allowPoolingConnection", "play.ws.ning.allowSslConnectionPool").foreach { s =>
-        if (playConfig.underlying.hasPath(s)) {
-          throw playConfig.reportError(s, msg)
+        if (configuration.underlying.hasPath(s)) {
+          throw configuration.reportError(s, msg)
         }
       }
     }
@@ -280,7 +279,13 @@ class AhcConfigBuilder(ahcConfig: AhcWSClientConfig = AhcWSClientConfig()) {
 
     builder.setAcceptAnyCertificate(sslConfig.loose.acceptAnyCertificate)
 
-    builder.setSslEngineFactory(new JsseSslEngineFactory(sslContext))
+    // If you wan't to accept any certificate you also want to use a loose netty based loose SslContext
+    // Never use this in production.
+    if (sslConfig.loose.acceptAnyCertificate) {
+      builder.setSslContext(SslContextBuilder.forClient().trustManager(InsecureTrustManagerFactory.INSTANCE).build())
+    } else {
+      builder.setSslEngineFactory(new JsseSslEngineFactory(sslContext))
+    }
   }
 
   def buildKeyManagerFactory(ssl: SSLConfig): KeyManagerFactoryWrapper = {

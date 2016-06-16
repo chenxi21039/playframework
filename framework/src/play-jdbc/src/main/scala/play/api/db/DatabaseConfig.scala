@@ -1,9 +1,9 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.api.db
 
-import play.api.{ Environment, PlayConfig }
+import play.api.{ Configuration, Environment }
 
 /**
  * The generic database configuration.
@@ -18,7 +18,7 @@ case class DatabaseConfig(driver: Option[String], url: Option[String], username:
 
 object DatabaseConfig {
 
-  def fromConfig(config: PlayConfig, environment: Environment) = {
+  def fromConfig(config: Configuration, environment: Environment) = {
 
     val driver = config.get[Option[String]]("driver")
     val (url, userPass) = ConnectionPool.extractUrl(config.get[Option[String]]("url"), environment.mode)

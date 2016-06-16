@@ -1,13 +1,11 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.api.libs
 
 import akka.stream.scaladsl._
 import org.specs2.mutable.Specification
 import play.api.http.ContentTypes
-import play.api.libs.iteratee.Enumerator
-import play.api.libs.json.JsValue
 import play.api.mvc.Results
 
 object EventSourceSpec extends Specification {
@@ -43,10 +41,6 @@ object EventSourceSpec extends Specification {
   }
 
   "EventSource.Event" should {
-    "be writeable as a response body using an enumerator" in {
-      val result = Results.Ok.chunked(Enumerator("foo", "bar", "baz") &> EventSource())
-      result.body.contentType must beSome(ContentTypes.EVENT_STREAM)
-    }
 
     "be writeable as a response body using an Akka Source" in {
       val stringSource = Source(Vector("foo", "bar", "baz"))

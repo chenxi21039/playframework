@@ -1,13 +1,14 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.test;
 
 import java.io.File;
 import java.util.Map;
 
+import com.typesafe.config.Config;
+
 import play.api.mvc.Handler;
-import play.Configuration;
 import play.inject.Injector;
 import play.libs.Scala;
 
@@ -20,53 +21,30 @@ import play.libs.Scala;
 public class FakeApplication implements play.Application {
 
     private final play.api.test.FakeApplication application;
-    private final Configuration configuration;
+    private final Config config;
     private final Injector injector;
 
     /**
      * Create a fake application.
      *
-     * @deprecated Use the version without GlobalSettings, since 2.5.0
-     *
      * @param path application environment root path
      * @param classloader application environment class loader
      * @param additionalConfiguration additional configuration for the application
-     * @param global global settings to use in place of default global
      */
     @SuppressWarnings("unchecked")
-    @Deprecated
     public FakeApplication(
         File path,
         ClassLoader classloader,
-        Map<String, ? extends Object> additionalConfiguration,
-        play.GlobalSettings global) {
-
-        play.api.GlobalSettings scalaGlobal = (global != null) ? new play.core.j.JavaGlobalSettingsAdapter(global) : null;
+        Map<String, ? extends Object> additionalConfiguration) {
 
         this.application = new play.api.test.FakeApplication(
             path,
             classloader,
             Scala.asScala((Map<String, Object>) additionalConfiguration),
-            scala.Option.apply(scalaGlobal),
             scala.PartialFunction$.MODULE$.<scala.Tuple2<String, String>, Handler>empty()
         );
-        this.configuration = application.injector().instanceOf(Configuration.class);
+        this.config = application.injector().instanceOf(Config.class);
         this.injector = application.injector().instanceOf(Injector.class);
-    }
-
-    /**
-     * Create a fake application.
-     *
-     * @param path application environment root path
-     * @param classloader application environment class loader
-     * @param additionalConfiguration additional configuration for the application
-     */
-    @SuppressWarnings("unchecked")
-    public FakeApplication(
-            File path,
-            ClassLoader classloader,
-            Map<String, ? extends Object> additionalConfiguration) {
-        this(path, classloader, additionalConfiguration, null);
     }
 
     /**
@@ -79,8 +57,18 @@ public class FakeApplication implements play.Application {
     /**
      * Get the application configuration.
      */
-    public Configuration configuration() {
-        return configuration;
+    public Config config() {
+        return config;
+    }
+
+    /**
+     * Get the application configuration.
+     *
+     * @deprecated Use config
+     */
+    @Deprecated
+    public play.Configuration configuration() {
+        return new play.Configuration(config);
     }
 
     /**

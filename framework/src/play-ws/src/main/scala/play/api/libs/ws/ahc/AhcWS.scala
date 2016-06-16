@@ -1,10 +1,7 @@
 /*
-  * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+  * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.api.libs.ws.ahc
-
-import java.util
-import java.util.Map.Entry
 
 import akka.stream.Materializer
 import akka.util.ByteString
@@ -20,7 +17,6 @@ import javax.inject.{ Inject, Provider, Singleton }
 import io.netty.handler.codec.http.HttpHeaders
 import play.api._
 import play.api.inject.{ ApplicationLifecycle, Module }
-import play.api.libs.iteratee.Enumerator
 import play.api.libs.ws._
 import play.api.libs.ws.ssl._
 import play.api.libs.ws.ssl.debug._
@@ -49,13 +45,13 @@ case class AhcWSClient(config: AsyncHttpClientConfig)(implicit materializer: Mat
 
   def close(): Unit = asyncHttpClient.close()
 
-  def url(url: String): WSRequest = AhcWSRequest(this, url, "GET", EmptyBody, Map(), Map(), None, None, None, None, None, None, None)
+  def url(url: String): WSRequest = AhcWSRequest(this, url, "GET", EmptyBody, TreeMap()(CaseInsensitiveOrdered), Map(), None, None, None, None, None, None, None)
 }
 
 object AhcWSClient {
   /**
    * Convenient factory method that uses a [[WSClientConfig]] value for configuration instead of
-   * an [[http://static.javadoc.io/org.asynchttpclient/async-http-client/2.0.0-RC7/org/asynchttpclient/AsyncHttpClientConfig.html org.asynchttpclient.AsyncHttpClientConfig]].
+   * an [[http://static.javadoc.io/org.asynchttpclient/async-http-client/2.0.0/org/asynchttpclient/AsyncHttpClientConfig.html org.asynchttpclient.AsyncHttpClientConfig]].
    *
    * Typical usage:
    *
@@ -85,6 +81,23 @@ case object AhcWSRequest {
     }
     TreeMap[String, Seq[String]]()(CaseInsensitiveOrdered) ++ mutableMap
   }
+
+  private[libs] def execute(request: Request, client: AhcWSClient): Future[AhcWSResponse] = {
+    import org.asynchttpclient.AsyncCompletionHandler
+    val result = Promise[AhcWSResponse]()
+
+    client.executeRequest(request, new AsyncCompletionHandler[AHCResponse]() {
+      override def onCompleted(response: AHCResponse) = {
+        result.success(AhcWSResponse(response))
+        response
+      }
+
+      override def onThrowable(t: Throwable) = {
+        result.failure(t)
+      }
+    })
+    result.future
+  }
 }
 
 /**
@@ -102,7 +115,8 @@ case class AhcWSRequest(client: AhcWSClient,
     requestTimeout: Option[Int],
     virtualHost: Option[String],
     proxyServer: Option[WSProxyServer],
-    disableUrlEncoding: Option[Boolean])(implicit materializer: Materializer) extends WSRequest {
+    disableUrlEncoding: Option[Boolean],
+    filters: Seq[WSRequestFilter] = Nil)(implicit materializer: Materializer) extends WSRequest {
 
   def sign(calc: WSSignatureCalculator): WSRequest = copy(calc = Some(calc))
 
@@ -124,6 +138,8 @@ case class AhcWSRequest(client: AhcWSClient,
 
   def withFollowRedirects(follow: Boolean): WSRequest = copy(followRedirects = Some(follow))
 
+  def withRequestFilter(filter: WSRequestFilter): WSRequest = copy(filters = filters :+ filter)
+
   def withRequestTimeout(timeout: Duration): WSRequest = {
     timeout match {
       case Duration.Inf =>
@@ -143,12 +159,19 @@ case class AhcWSRequest(client: AhcWSClient,
 
   def withMethod(method: String): WSRequest = copy(method = method)
 
-  def execute(): Future[WSResponse] = execute(buildRequest())
+  def execute(): Future[WSResponse] = {
+    val executor = filterWSRequestExecutor(new WSRequestExecutor {
+      override def execute(request: WSRequest): Future[WSResponse] =
+        AhcWSRequest.execute(request.asInstanceOf[AhcWSRequest].buildRequest(), client)
+    })
+    executor.execute(this)
+  }
+
+  protected def filterWSRequestExecutor(next: WSRequestExecutor): WSRequestExecutor = {
+    filters.foldRight(next)(_ apply _)
+  }
 
   def stream(): Future[StreamedResponse] = Streamed.execute(client.underlying, buildRequest())
-
-  @deprecated("2.5", "Use `stream()` instead.")
-  def streamWithEnumerator(): Future[(WSResponseHeaders, Enumerator[Array[Byte]])] = Streamed.execute2(client.underlying, buildRequest())
 
   /**
    * Returns the current headers of the request, using the request builder.  This may be signed,
@@ -206,12 +229,7 @@ case class AhcWSRequest(client: AhcWSClient,
       .build()
   }
 
-  def contentType: Option[String] = {
-    this.headers.find(p => p._1 == HttpHeaders.Names.CONTENT_TYPE).map {
-      case (header, values) =>
-        values.head
-    }
-  }
+  def contentType: Option[String] = this.headers.get(HttpHeaders.Names.CONTENT_TYPE).map(_.head)
 
   /**
    * Creates and returns an AHC request, running all operations on it.
@@ -247,29 +265,29 @@ case class AhcWSRequest(client: AhcWSClient,
     proxyServer.foreach(p => builder.setProxyServer(createProxy(p)))
     requestTimeout.foreach(builder.setRequestTimeout)
 
-    // Set the body.
-    var possiblyModifiedHeaders = this.headers
-    val builderWithBody = body match {
-      case EmptyBody => builder
+    val (builderWithBody, updatedHeaders) = body match {
+      case EmptyBody => (builder, this.headers)
       case FileBody(file) =>
         import org.asynchttpclient.request.body.generator.FileBodyGenerator
         val bodyGenerator = new FileBodyGenerator(file)
         builder.setBody(bodyGenerator)
+        (builder, this.headers)
       case InMemoryBody(bytes) =>
         val ct: String = contentType.getOrElse("text/plain")
 
-        try {
-          // extract the content type and the charset
-          val charsetOption = Option(HttpUtils.parseCharset(ct))
-          val charset = charsetOption.getOrElse {
-            StandardCharsets.UTF_8
-          }.name()
+        val h = try {
+          // Only parse out the form body if we are doing the signature calculation.
+          if (ct.contains(HttpHeaders.Values.APPLICATION_X_WWW_FORM_URLENCODED) && calc.isDefined) {
+            // If we are taking responsibility for setting the request body, we should block any
+            // externally defined Content-Length field (see #5221 for the details)
+            val filteredHeaders = this.headers.filterNot { case (k, v) => k.equalsIgnoreCase(HttpHeaders.Names.CONTENT_LENGTH) }
 
-          // Always replace the content type header to make sure exactly one exists
-          val contentTypeList = Seq(ct + (if (charsetOption.isDefined) { "" } else { "; charset=" + charset.toLowerCase }))
-          possiblyModifiedHeaders = this.headers.updated(HttpHeaders.Names.CONTENT_TYPE, contentTypeList)
+            // extract the content type and the charset
+            val charsetOption = Option(HttpUtils.parseCharset(ct))
+            val charset = charsetOption.getOrElse {
+              StandardCharsets.UTF_8
+            }.name()
 
-          if (ct.contains(HttpHeaders.Values.APPLICATION_X_WWW_FORM_URLENCODED)) {
             // Get the string body given the given charset...
             val stringBody = bytes.decodeString(charset)
             // The Ahc signature calculator uses request.getFormParams() for calculation,
@@ -280,22 +298,31 @@ case class AhcWSRequest(client: AhcWSClient,
               value <- values
             } yield new Param(key, value)
             builder.setFormParams(params.asJava)
+            filteredHeaders
           } else {
             builder.setBody(bytes.toArray)
+            this.headers
           }
         } catch {
           case e: UnsupportedEncodingException =>
             throw new RuntimeException(e)
         }
 
-        builder
+        (builder, h)
       case StreamedBody(source) =>
-        builder.setBody(source.map(_.toByteBuffer).runWith(Sink.asPublisher(false)))
+        // If the body has a streaming interface it should be up to the user to provide a manual Content-Length
+        // else every content would be Transfer-Encoding: chunked
+        // If the Content-Length is -1 Async-Http-Client sets a Transfer-Encoding: chunked
+        // If the Content-Length is great than -1 Async-Http-Client will use the correct Content-Length
+        val filteredHeaders = this.headers.filterNot { case (k, v) => k.equalsIgnoreCase(HttpHeaders.Names.CONTENT_LENGTH) }
+        val contentLength = this.headers.find { case (k, _) => k.equalsIgnoreCase(HttpHeaders.Names.CONTENT_LENGTH) }.map(_._2.head.toLong)
+
+        (builder.setBody(source.map(_.toByteBuffer).runWith(Sink.asPublisher(false)), contentLength.getOrElse(-1L)), filteredHeaders)
     }
 
     // headers
     for {
-      header <- possiblyModifiedHeaders
+      header <- updatedHeaders
       value <- header._2
     } builder.addHeader(header._1, value)
 
@@ -308,24 +335,6 @@ case class AhcWSRequest(client: AhcWSClient,
     }
 
     builderWithBody.build()
-  }
-
-  private[libs] def execute(request: Request): Future[AhcWSResponse] = {
-
-    import org.asynchttpclient.AsyncCompletionHandler
-    val result = Promise[AhcWSResponse]()
-
-    client.executeRequest(request, new AsyncCompletionHandler[AHCResponse]() {
-      override def onCompleted(response: AHCResponse) = {
-        result.success(AhcWSResponse(response))
-        response
-      }
-
-      override def onThrowable(t: Throwable) = {
-        result.failure(t)
-      }
-    })
-    result.future
   }
 
   private[libs] def createProxy(wsProxyServer: WSProxyServer): AHCProxyServer = {
@@ -540,8 +549,11 @@ case class AhcWSResponse(ahcResponse: AHCResponse) extends WSResponse {
 trait AhcWSComponents {
 
   def environment: Environment
+
   def configuration: Configuration
+
   def applicationLifecycle: ApplicationLifecycle
+
   def materializer: Materializer
 
   lazy val wsClientConfig: WSClientConfig = new WSConfigParser(configuration, environment).parse()

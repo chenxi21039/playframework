@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.i18n;
 
@@ -9,54 +9,61 @@ import play.Application;
 import play.api.Play;
 import play.libs.*;
 
+import static java.util.stream.Collectors.toList;
+
 /**
  * A Lang supported by the application.
  */
 public class Lang extends play.api.i18n.Lang {
 
-    public final play.api.i18n.Lang underlyingLang;
-
     public Lang(play.api.i18n.Lang underlyingLang) {
-        super(underlyingLang.language(), underlyingLang.country());
-        this.underlyingLang = underlyingLang;
+        super(underlyingLang.locale());
+    }
+
+    public Lang(java.util.Locale locale) {
+        this(new play.api.i18n.Lang(locale));
     }
 
     /**
      * A valid ISO Language Code.
      */
     public String language() {
-        return underlyingLang.language();
+        return locale().getLanguage();
     }
 
     /**
      * A valid ISO Country Code.
      */
     public String country() {
-        return underlyingLang.country();
+        return locale().getCountry();
     }
 
     /**
-     * The Lang code (such as fr or en-US).
+     * The script tag for this Lang
+     */
+    public String script() {
+        return locale().getScript();
+    }
+
+    /**
+     * The variant tag for this Lang
+     */
+    public String variant() {
+        return locale().getVariant();
+    }
+
+    /**
+     * The language tag (such as fr or en-US).
      */
     public String code() {
-        return underlyingLang.code();
+        return locale().toLanguageTag();
     }
 
     /**
      * Convert to a Java Locale value.
      */
     public java.util.Locale toLocale() {
-        return underlyingLang.toLocale();
-    }
-
-    @Override
-    public boolean equals(Object other) {
-        return underlyingLang.equals(other);
-    }
-
-    @Override
-    public int hashCode() {
-        return underlyingLang.hashCode();
+        return locale();
     }
 
     /**
@@ -90,11 +97,7 @@ public class Lang extends play.api.i18n.Lang {
      */
     public static List<Lang> availables(Application app) {
         List<play.api.i18n.Lang> langs = Scala.asJava(play.api.i18n.Lang.availables(app.getWrappedApplication()));
-        List<play.i18n.Lang> result = new ArrayList<play.i18n.Lang>();
-        for(play.api.i18n.Lang lang: langs) {
-            result.add(new Lang(lang));
-        }
-        return result;
+        return langs.stream().map(Lang::new).collect(toList());
     }
 
     /**
@@ -108,10 +111,7 @@ public class Lang extends play.api.i18n.Lang {
     @Deprecated
     public static Lang preferred(List<Lang> langs) {
         play.api.Application app = Play.current();
-        List<play.api.i18n.Lang> result = new ArrayList<play.api.i18n.Lang>();
-        for(play.i18n.Lang lang: langs) {
-            result.add(lang.underlyingLang);
-        }
+        List<play.api.i18n.Lang> result = langs.stream().collect(toList());
         return new Lang(play.api.i18n.Lang.preferred(Scala.toSeq(result), app));
     }
 
@@ -123,10 +123,7 @@ public class Lang extends play.api.i18n.Lang {
      * @return the preferred lang.
      */
     public static Lang preferred(Application app, List<Lang> langs) {
-        List<play.api.i18n.Lang> result = new ArrayList<play.api.i18n.Lang>();
-        for(play.i18n.Lang lang: langs) {
-            result.add(lang.underlyingLang);
-        }
+        List<play.api.i18n.Lang> result = langs.stream().collect(toList());
         return new Lang(play.api.i18n.Lang.preferred(Scala.toSeq(result), app.getWrappedApplication()));
     }
 }

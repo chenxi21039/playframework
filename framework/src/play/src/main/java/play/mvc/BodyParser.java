@@ -1,8 +1,9 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.mvc;
 
+import akka.stream.Materializer;
 import akka.stream.javadsl.Flow;
 import akka.stream.javadsl.Sink;
 import akka.util.ByteString;
@@ -11,22 +12,31 @@ import org.w3c.dom.Document;
 import play.api.http.HttpConfiguration;
 import play.api.http.Status$;
 import play.api.libs.Files;
-import play.api.mvc.BodyParsers$;
+import play.api.mvc.MaxSizeNotExceeded$;
+import play.api.mvc.MaxSizeStatus;
 import play.core.j.JavaParsers;
 import play.core.parsers.FormUrlEncodedParser;
 import play.http.HttpErrorHandler;
 import play.libs.F;
 import play.libs.XML;
 import play.libs.streams.Accumulator;
+import play.api.libs.streams.Accumulator$;
 import scala.compat.java8.FutureConverters;
+import scala.concurrent.Future;
 
 import javax.inject.Inject;
 import java.io.File;
-import java.lang.annotation.*;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.Executor;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 /**
@@ -57,11 +67,11 @@ public interface BodyParser<A> {
          * @return the class
          */
         Class<? extends BodyParser> value();
-      
+
     }
 
     /**
-     * If PATCH, POST, or PUT, guess the body content by checking the Content-Type header.
+     * If the request has a body, guess the body content by checking the Content-Type header.
      */
     class Default extends AnyContent {
         @Inject
@@ -71,7 +81,7 @@ public interface BodyParser<A> {
 
         @Override
         public Accumulator<ByteString, F.Either<Result, Object>> apply(Http.RequestHeader request) {
-            if (request.method().equals("POST") || request.method().equals("PUT") || request.method().equals("PATCH")) {
+            if (request.hasHeader(Http.HeaderNames.CONTENT_LENGTH) || request.hasHeader(Http.HeaderNames.TRANSFER_ENCODING)) {
                 return super.apply(request);
             } else {
                 return (Accumulator) new Empty().apply(request);
@@ -308,8 +318,9 @@ public interface BodyParser<A> {
 
         @Override
         protected Map<String, String[]> parse(Http.RequestHeader request, ByteString bytes) throws Exception {
-            String charset = request.charset().orElse("ISO-8859-1");
-            return FormUrlEncodedParser.parseAsJavaArrayValues(bytes.decodeString(charset), charset);
+            String charset = request.charset().orElse("UTF-8");
+            String urlEncodedString = bytes.decodeString("UTF-8");
+            return FormUrlEncodedParser.parseAsJavaArrayValues(urlEncodedString, charset);
         }
     }
 
@@ -347,19 +358,19 @@ public interface BodyParser<A> {
 
         @Override
         public Accumulator<ByteString, F.Either<Result, A>> apply(Http.RequestHeader request) {
-            return apply1(request).through(
-                    Flow.<ByteString>create()
-                            .transform(() -> new BodyParsers$.TakeUpTo(maxLength))
-            ).recoverWith(exception -> {
-                if (exception instanceof play.api.mvc.BodyParsers$.MaxLengthLimitAttained) {
-                    return errorHandler.onClientError(request, Status$.MODULE$.REQUEST_ENTITY_TOO_LARGE(), "Request entity too large")
-                            .thenApply(F.Either::<Result, A>Left);
-                } else {
-                    CompletableFuture<F.Either<Result, A>> cf = new CompletableFuture<>();
-                    cf.completeExceptionally(exception);
-                    return cf;
-                }
-            }, JavaParsers.trampoline());
+            Flow<ByteString, ByteString, Future<MaxSizeStatus>> takeUpToFlow = Flow.fromGraph(play.api.mvc.BodyParsers$.MODULE$.takeUpTo(maxLength));
+            Sink<ByteString, CompletionStage<F.Either<Result, A>>> result = apply1(request).toSink();
+
+            return Accumulator.fromSink(takeUpToFlow.toMat(result, (statusFuture, resultFuture) ->
+               FutureConverters.toJava(statusFuture).thenCompose(status -> {
+                  if (status instanceof MaxSizeNotExceeded$) {
+                      return resultFuture;
+                  } else {
+                      return errorHandler.onClientError(request, Status$.MODULE$.REQUEST_ENTITY_TOO_LARGE(), "Request entity too large")
+                              .thenApply(F.Either::<Result, A>Left);
+                  }
+               })
+            ));
         }
 
         /**
@@ -384,8 +395,7 @@ public interface BodyParser<A> {
             this.errorMessage = errorMessage;
         }
 
-        protected BufferingBodyParser(HttpConfiguration httpConfiguration, HttpErrorHandler errorHandler,
-                                      String errorMessage) {
+        protected BufferingBodyParser(HttpConfiguration httpConfiguration, HttpErrorHandler errorHandler, String errorMessage) {
             this(httpConfiguration.parser().maxMemoryBuffer(), errorHandler, errorMessage);
         }
 
@@ -429,8 +439,8 @@ public interface BodyParser<A> {
 
         @Override
         public Accumulator<ByteString, F.Either<Result, A>> apply(Http.RequestHeader request) {
-            Accumulator<ByteString, scala.util.Either<play.api.mvc.Result, B>> javaAccumulator =
-                    delegate.apply(request._underlyingHeader()).asJava();
+            Accumulator<ByteString, scala.util.Either<play.api.mvc.Result, B>> javaAccumulator = delegate.apply(request._underlyingHeader()).asJava();
+
             return javaAccumulator.map(result -> {
                         if (result.isLeft()) {
                             return F.Either.Left(result.left().get().asJava());
@@ -443,4 +453,25 @@ public interface BodyParser<A> {
         }
     }
 
+    /**
+     * A body parser that completes the underlying one.
+     */
+    abstract class CompletableBodyParser<A> implements BodyParser<A> {
+        private final CompletionStage<BodyParser<A>> underlying;
+        private final Materializer materializer;
+
+        public CompletableBodyParser(CompletionStage<BodyParser<A>> underlying,
+                                     Materializer materializer) {
+
+            this.underlying = underlying;
+            this.materializer = materializer;
+        }
+
+        @Override
+        public Accumulator<ByteString, F.Either<Result, A>> apply(Http.RequestHeader request) {
+            CompletionStage<Accumulator<ByteString, F.Either<Result, A>>> completion = underlying.thenApply(parser -> parser.apply(request));
+
+            return Accumulator.flatten(completion, this.materializer);
+        }
+    }
 }

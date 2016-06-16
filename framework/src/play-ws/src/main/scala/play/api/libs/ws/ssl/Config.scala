@@ -1,14 +1,16 @@
 /*
  *
- *  * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ *  * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  *
  */
 package play.api.libs.ws.ssl
 
-import play.api.PlayConfig
-import java.security.{ KeyStore, SecureRandom }
 import java.net.URL
-import javax.net.ssl.{ TrustManagerFactory, KeyManagerFactory }
+import java.security.{ KeyStore, SecureRandom }
+import javax.net.ssl.{ KeyManagerFactory, TrustManagerFactory }
+
+import org.slf4j.LoggerFactory
+import play.api.Configuration
 
 /**
  * Configuration for a keystore.
@@ -140,9 +142,9 @@ case class SSLDebugRecordOptions(plaintext: Boolean = false, packet: Boolean = f
  * @param allowWeakCiphers Whether weak ciphers should be allowed or not.
  * @param allowWeakProtocols Whether weak protocols should be allowed or not.
  * @param allowLegacyHelloMessages Whether legacy hello messages should be allowed or not.  If None, uses the platform
- *                                 default.
+ * default.
  * @param allowUnsafeRenegotiation Whether unsafe renegotiation should be allowed or not. If None, uses the platform
- *                                 default.
+ * default.
  * @param acceptAnyCertificate Whether any X.509 certificate should be accepted or not.
  */
 case class SSLLooseConfig(
@@ -191,12 +193,15 @@ object SSLConfigFactory {
 
   /**
    * Create an instance of the default config
+   *
    * @return
    */
   def defaultConfig = SSLConfig()
 }
 
-class SSLConfigParser(c: PlayConfig, classLoader: ClassLoader) {
+class SSLConfigParser private[play] (c: Configuration, classLoader: ClassLoader) {
+
+  private[ssl] val logger = LoggerFactory.getLogger(this.getClass)
 
   def parse(): SSLConfig = {
 
@@ -207,8 +212,8 @@ class SSLConfigParser(c: PlayConfig, classLoader: ClassLoader) {
       c.get[Seq[String]]("revocationLists").map(new URL(_))
     ).filter(_.nonEmpty)
 
-    val debug = parseDebug(c.get[PlayConfig]("debug"))
-    val looseOptions = parseLooseOptions(c.get[PlayConfig]("loose"))
+    val debug = parseDebug(c.get[Configuration]("debug"))
+    val looseOptions = parseLooseOptions(c.get[Configuration]("loose"))
 
     val ciphers = Some(c.get[Seq[String]]("enabledCipherSuites")).filter(_.nonEmpty)
     val protocols = Some(c.get[Seq[String]]("enabledProtocols")).filter(_.nonEmpty)
@@ -216,9 +221,9 @@ class SSLConfigParser(c: PlayConfig, classLoader: ClassLoader) {
     val disabledSignatureAlgorithms = c.get[Seq[String]]("disabledSignatureAlgorithms")
     val disabledKeyAlgorithms = c.get[Seq[String]]("disabledKeyAlgorithms")
 
-    val keyManagers = parseKeyManager(c.get[PlayConfig]("keyManager"))
+    val keyManagers = parseKeyManager(c.get[Configuration]("keyManager"))
 
-    val trustManagers = parseTrustManager(c.get[PlayConfig]("trustManager"))
+    val trustManagers = parseTrustManager(c.get[Configuration]("trustManager"))
 
     SSLConfig(
       default = default,
@@ -239,13 +244,20 @@ class SSLConfigParser(c: PlayConfig, classLoader: ClassLoader) {
   /**
    * Parses "ws.ssl.loose" section.
    */
-  def parseLooseOptions(config: PlayConfig): SSLLooseConfig = {
+  def parseLooseOptions(config: Configuration): SSLLooseConfig = {
 
     val allowWeakProtocols = config.get[Boolean]("allowWeakProtocols")
     val allowWeakCiphers = config.get[Boolean]("allowWeakCiphers")
     val allowMessages = config.get[Option[Boolean]]("allowLegacyHelloMessages")
     val allowUnsafeRenegotiation = config.get[Option[Boolean]]("allowUnsafeRenegotiation")
     val acceptAnyCertificate = config.get[Boolean]("acceptAnyCertificate")
+
+    if (acceptAnyCertificate) {
+      logger.warn("""
+        |You've enabled play.ws.ssl.loose.acceptAnyCertificate,
+        |please be sure to disable that on production!
+        |""".stripMargin)
+    }
 
     SSLLooseConfig(
       allowWeakCiphers = allowWeakCiphers,
@@ -259,7 +271,7 @@ class SSLConfigParser(c: PlayConfig, classLoader: ClassLoader) {
   /**
    * Parses the "ws.ssl.debug" section.
    */
-  def parseDebug(config: PlayConfig): SSLDebugConfig = {
+  def parseDebug(config: Configuration): SSLDebugConfig = {
     val certpath = config.get[Boolean]("certpath")
 
     if (config.get[Boolean]("all")) {
@@ -309,7 +321,7 @@ class SSLConfigParser(c: PlayConfig, classLoader: ClassLoader) {
   /**
    * Parses the "ws.ssl.keyManager { stores = [ ... ]" section of configuration.
    */
-  def parseKeyStoreInfo(config: PlayConfig): KeyStoreConfig = {
+  def parseKeyStoreInfo(config: Configuration): KeyStoreConfig = {
     val storeType = config.get[Option[String]]("type").getOrElse(KeyStore.getDefaultType)
     val path = config.get[Option[String]]("path")
     val data = config.get[Option[String]]("data")
@@ -321,7 +333,7 @@ class SSLConfigParser(c: PlayConfig, classLoader: ClassLoader) {
   /**
    * Parses the "ws.ssl.trustManager { stores = [ ... ]" section of configuration.
    */
-  def parseTrustStoreInfo(config: PlayConfig): TrustStoreConfig = {
+  def parseTrustStoreInfo(config: Configuration): TrustStoreConfig = {
     val storeType = config.get[Option[String]]("type").getOrElse(KeyStore.getDefaultType)
     val path = config.get[Option[String]]("path")
     val data = config.get[Option[String]]("data")
@@ -332,7 +344,7 @@ class SSLConfigParser(c: PlayConfig, classLoader: ClassLoader) {
   /**
    * Parses the "ws.ssl.keyManager" section of the configuration.
    */
-  def parseKeyManager(config: PlayConfig): KeyManagerConfig = {
+  def parseKeyManager(config: Configuration): KeyManagerConfig = {
 
     val algorithm = config.get[Option[String]]("algorithm") match {
       case None => KeyManagerFactory.getDefaultAlgorithm
@@ -350,7 +362,7 @@ class SSLConfigParser(c: PlayConfig, classLoader: ClassLoader) {
    * Parses the "ws.ssl.trustManager" section of configuration.
    */
 
-  def parseTrustManager(config: PlayConfig): TrustManagerConfig = {
+  def parseTrustManager(config: Configuration): TrustManagerConfig = {
     val algorithm = config.get[Option[String]]("algorithm") match {
       case None => TrustManagerFactory.getDefaultAlgorithm
       case Some(other) => other

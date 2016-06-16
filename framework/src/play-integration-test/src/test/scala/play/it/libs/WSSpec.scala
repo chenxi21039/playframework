@@ -1,17 +1,19 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.it.libs
 
+import java.io.File
+import java.util
 import java.util.concurrent.TimeUnit
 
+import akka.stream.scaladsl.FileIO
 import akka.util.ByteString
 import akka.stream.scaladsl.Source
 import akka.stream.scaladsl.Sink
-
 import org.asynchttpclient.{ RequestBuilderBase, SignatureCalculator }
-
 import play.api.http.Port
+import play.api.libs.json.JsString
 import play.api.libs.oauth._
 import play.api.mvc._
 import play.api.test._
@@ -20,7 +22,9 @@ import play.it._
 import play.it.tools.HttpBinApplication
 import play.api.mvc.Results.Ok
 import play.api.libs.streams.Accumulator
+import play.api.libs.ws.StreamedBody
 import play.libs.ws.WSResponse
+import play.mvc.Http
 
 import scala.concurrent.Await
 import scala.concurrent.duration._
@@ -79,6 +83,18 @@ trait WSSpec extends PlaySpecification with ServerIntegrationSpecification {
         block(wsClient)
       } finally {
         wsClient.close()
+      }
+    }
+
+    def withHeaderCheck[T](block: play.libs.ws.WSClient => T) = {
+      Server.withRouter() {
+        case _ => Action { req =>
+          val contentLength = req.headers.get(CONTENT_LENGTH)
+          val transferEncoding = req.headers.get(TRANSFER_ENCODING)
+          Ok(s"Content-Length: ${contentLength.getOrElse(-1)}; Transfer-Encoding: ${transferEncoding.getOrElse(-1)}")
+        }
+      } { implicit port =>
+        withClient(block)
       }
     }
 
@@ -153,6 +169,35 @@ trait WSSpec extends PlaySpecification with ServerIntegrationSpecification {
       body must_== "abc"
     }
 
+    "streaming a request body with manual content length" in withHeaderCheck { ws =>
+      val source = Source.single(ByteString("abc")).asJava
+      val res = ws.url("/post").setMethod("POST").setHeader(CONTENT_LENGTH, "3").setBody(source).execute()
+      val body = res.toCompletableFuture.get().getBody
+
+      body must_== s"Content-Length: 3; Transfer-Encoding: -1"
+    }
+
+    "sending a simple multipart form body" in withServer { ws =>
+      val source = Source.single(new Http.MultipartFormData.DataPart("hello", "world")).asJava
+      val res = ws.url("/post").post(source)
+      val body = res.toCompletableFuture.get().asJson()
+
+      body.path("form").path("hello").textValue() must_== "world"
+    }
+
+    "sending a multipart form body" in withServer { ws =>
+      val file = new File(this.getClass.getResource("/testassets/bar.txt").toURI)
+      val dp = new Http.MultipartFormData.DataPart("hello", "world")
+      val fp = new Http.MultipartFormData.FilePart("upload", "bar.txt", "text/plain", FileIO.fromFile(file).asJava)
+      val source = akka.stream.javadsl.Source.from(util.Arrays.asList(dp, fp))
+
+      val res = ws.url("/post").post(source)
+      val body = res.toCompletableFuture.get().asJson()
+
+      body.path("form").path("hello").textValue() must_== "world"
+      body.path("file").textValue() must_== "This is a test asset."
+    }
+
     class CustomSigner extends WSSignatureCalculator with org.asynchttpclient.SignatureCalculator {
       def calculateAndAddSignature(request: org.asynchttpclient.Request, requestBuilder: org.asynchttpclient.RequestBuilderBase[_]) = {
         // do nothing
@@ -213,6 +258,20 @@ trait WSSpec extends PlaySpecification with ServerIntegrationSpecification {
       }
     }
 
+    def withHeaderCheck[T](block: play.api.libs.ws.WSClient => T) = {
+      Server.withRouter() {
+        case _ => Action { req =>
+
+          val contentLength = req.headers.get(CONTENT_LENGTH)
+          val transferEncoding = req.headers.get(TRANSFER_ENCODING)
+          Ok(s"Content-Length: ${contentLength.getOrElse(-1)}; Transfer-Encoding: ${transferEncoding.getOrElse(-1)}")
+
+        }
+      } { implicit port =>
+        WsTestClient.withClient(block)
+      }
+    }
+
     "make GET Requests" in withServer { ws =>
       val req = ws.url("/get").get()
 
@@ -241,6 +300,26 @@ trait WSSpec extends PlaySpecification with ServerIntegrationSpecification {
       val body = await(res).body
 
       body must_== "abc"
+    }
+
+    "streaming a request body with manual content length" in withHeaderCheck { ws =>
+      val source = Source.single(ByteString("abc"))
+      val res = ws.url("/post").withMethod("POST").withHeaders(CONTENT_LENGTH -> "3").withBody(StreamedBody(source)).execute()
+      val body = await(res).body
+
+      body must_== s"Content-Length: 3; Transfer-Encoding: -1"
+    }
+
+    "send a multipart request body" in withServer { ws =>
+      val file = new File(this.getClass.getResource("/testassets/foo.txt").toURI)
+      val dp = MultipartFormData.DataPart("hello", "world")
+      val fp = MultipartFormData.FilePart("upload", "foo.txt", None, FileIO.fromFile(file))
+      val source = Source(List(dp, fp))
+      val res = ws.url("/post").post(source)
+      val body = await(res).json
+
+      (body \ "form" \ "hello").toOption must beSome(JsString("world"))
+      (body \ "file").toOption must beSome(JsString("This is a test asset."))
     }
 
     class CustomSigner extends WSSignatureCalculator with SignatureCalculator {

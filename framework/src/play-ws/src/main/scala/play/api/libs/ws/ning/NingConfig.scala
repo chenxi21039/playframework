@@ -1,6 +1,6 @@
 /*
  *
- *  * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ *  * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  *
  */
 package play.api.libs.ws.ning
@@ -9,7 +9,6 @@ import java.security.KeyStore
 import java.security.cert.CertPathValidatorException
 import javax.net.ssl._
 
-import io.netty.handler.ssl.SslContextBuilder
 import org.asynchttpclient.netty.ssl.JsseSslEngineFactory
 import org.asynchttpclient.{ AsyncHttpClientConfig, DefaultAsyncHttpClientConfig }
 import org.slf4j.LoggerFactory

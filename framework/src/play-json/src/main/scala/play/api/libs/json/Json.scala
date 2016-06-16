@@ -1,10 +1,9 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.api.libs.json
 
 import java.io.InputStream
-import play.api.libs.iteratee.Execution.Implicits.defaultExecutionContext
 import play.api.libs.json.jackson.JacksonJson
 
 /**
@@ -130,7 +129,7 @@ object Json {
    * Example :
    * {{{
    * JsObject(Seq(
-   *    "key1", JsString("value"),
+   *    "key1" -> JsString("value"),
    *    "key2" -> JsNumber(123),
    *    "key3" -> JsObject(Seq("key31" -> JsString("value31")))
    * )) == Json.obj( "key1" -> "value", "key2" -> 123, "key3" -> obj("key31" -> "value31"))
@@ -151,28 +150,6 @@ object Json {
 
   def obj(fields: (String, JsValueWrapper)*): JsObject = JsObject(fields.map(f => (f._1, f._2.asInstanceOf[JsValueWrapperImpl].field)))
   def arr(fields: JsValueWrapper*): JsArray = JsArray(fields.map(_.asInstanceOf[JsValueWrapperImpl].field))
-
-  import play.api.libs.iteratee.Enumeratee
-
-  /**
-   * Transform a stream of A to a stream of JsValue
-   * {{{
-   *   val fooStream: Enumerator[Foo] = ???
-   *   val jsonStream: Enumerator[JsValue] = fooStream &> Json.toJson
-   * }}}
-   */
-  @deprecated("Use Enumeratee.map[A](Json.toJson(_)) instead", "2.5.0")
-  def toJson[A: Writes]: Enumeratee[A, JsValue] = Enumeratee.map[A](Json.toJson(_))
-  /**
-   * Transform a stream of JsValue to a stream of A, keeping only successful results
-   * {{{
-   *   val jsonStream: Enumerator[JsValue] = ???
-   *   val fooStream: Enumerator[Foo] = jsonStream &> Json.fromJson
-   * }}}
-   */
-  @deprecated("Use Enumeratee.map[JsValue]((json: JsValue) => Json.fromJson(json)) ><> Enumeratee.collect[JsResult[A]] { case JsSuccess(value, _) => value } instead", "2.5.0")
-  def fromJson[A: Reads]: Enumeratee[JsValue, A] =
-    Enumeratee.map[JsValue]((json: JsValue) => Json.fromJson(json)) ><> Enumeratee.collect[JsResult[A]] { case JsSuccess(value, _) => value }
 
   /**
    * Experimental JSON extensions to replace asProductXXX by generating

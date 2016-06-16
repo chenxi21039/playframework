@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.api.mvc
 
@@ -11,7 +11,7 @@ import play.api.i18n.Lang
  *
  * For example:
  * {{{
- * object Application extends Controller {
+ * class HomeController @Inject()() extends Controller {
  *
  *   def hello(name:String) = Action { request =>
  *     Ok("Hello " + name)

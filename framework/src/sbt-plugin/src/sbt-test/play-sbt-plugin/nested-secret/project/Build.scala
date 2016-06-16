@@ -1,11 +1,12 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 
 import com.typesafe.config.{Config, ConfigFactory}
 import play.sbt.PlayScala
+import play.sbt.PlayImport._
+import sbt.Keys._
 import sbt._
-import Keys._
 
 object ApplicationBuild extends Build {
 
@@ -14,6 +15,7 @@ object ApplicationBuild extends Build {
 
   val main = Project(appName, file(".")).enablePlugins(PlayScala).settings(
     version := appVersion,
+    libraryDependencies += guiceSupport,
     TaskKey[Unit]("checkSecret") := {
       val file: File = baseDirectory.value / "conf/application.conf"
       val config: Config = ConfigFactory.parseFileAnySyntax(file)

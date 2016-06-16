@@ -1,9 +1,11 @@
 //
-// Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+// Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
 //
 import scala.reflect._
 
 lazy val root = (project in file(".")).enablePlugins(PlayScala)
+
+libraryDependencies += guiceSupport
 
 scalaVersion := sys.props.get("scala.version").getOrElse("2.11.7")
 

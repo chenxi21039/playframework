@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package scalaguide.ws.scalaws
 
@@ -77,6 +77,16 @@ class ScalaWSSpec extends PlaySpecification with Results with AfterAll {
       case (method, path) => routes(method, path)
     }).build()
     running(TestServer(testServerPort, app))(block(app.injector.instanceOf[WSClient]))
+  }
+
+  def writeFile(file: File, content: String) = {
+    file.getParentFile.mkdirs()
+    val out = new FileWriter(file)
+    try {
+      out.write(content)
+    } finally {
+      out.close()
+    }
   }
 
   /**
@@ -188,6 +198,36 @@ class ScalaWSSpec extends PlaySpecification with Results with AfterAll {
           //#url-encoded
 
         await(response).body must_== "value"
+      }
+
+      "post with multipart/form encoded body" in withServer {
+          case("POST", "/") => Action(BodyParsers.parse.multipartFormData)(r => Ok(r.body.asFormUrlEncoded("key").head))
+        } { ws =>
+        import play.api.mvc.MultipartFormData._
+        val response =
+        //#multipart-encoded
+        ws.url(url).post(Source.single(DataPart("key", "value")))
+        //#multipart-encoded
+
+        await(response).body must_== "value"
+      }
+
+      "post with multipart/form encoded body from a file" in withServer {
+        case("POST", "/") => Action(BodyParsers.parse.multipartFormData){r =>
+            val file = r.body.file("hello").head
+          Ok(scala.io.Source.fromFile(file.ref.file).mkString)
+        }
+      } { ws =>
+        val tmpFile = new File("/tmp/picture/tmpformuploaded")
+        writeFile(tmpFile, "world")
+
+        import play.api.mvc.MultipartFormData._
+        val response =
+        //#multipart-encoded2
+        ws.url(url).post(Source(FilePart("hello", "hello.txt", Option("text/plain"), FileIO.fromFile(tmpFile)) :: DataPart("key", "value") :: List()))
+        //#multipart-encoded2
+
+        await(response).body must_== "world"
       }
 
       "post with JSON body" in  withServer {
@@ -495,9 +535,6 @@ class ScalaWSSpec extends PlaySpecification with Results with AfterAll {
 
     "allow programmatic configuration" in new WithApplication() {
 
-      // If running in Play, environment should be injected
-      val environment = Environment(new File("."), this.getClass.getClassLoader, Mode.Prod)
-
       //#ws-custom-client
       import com.typesafe.config.ConfigFactory
       import play.api._
@@ -507,6 +544,9 @@ class ScalaWSSpec extends PlaySpecification with Results with AfterAll {
         """
           |ws.followRedirects = true
         """.stripMargin))
+
+      // If running in Play, environment should be injected
+      val environment = Environment(new File("."), this.getClass.getClassLoader, Mode.Prod)
 
       val parser = new WSConfigParser(configuration, environment)
       val config = new AhcWSClientConfig(wsClientConfig = parser.parse())
@@ -535,6 +575,16 @@ class ScalaWSSpec extends PlaySpecification with Results with AfterAll {
 
       val client: AsyncHttpClient = ws.underlying
       //#underlying
+
+      ok
+    }
+
+    "use logging" in withSimpleServer { ws =>
+      // #curl-logger-filter
+      ws.url(s"http://localhost:$testServerPort")
+        .withRequestFilter(AhcCurlRequestLogger())
+        .put(Map("key" -> Seq("value")))
+      // #curl-logger-filter
 
       ok
     }

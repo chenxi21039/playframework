@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.core.routing
 
@@ -10,10 +10,10 @@ import akka.stream.scaladsl.Flow
 import org.apache.commons.lang3.reflect.MethodUtils
 import play.api.mvc._
 import play.core.j
-import play.core.j.{ JavaHandlerComponents, JavaHandler, JavaActionAnnotations }
-import play.mvc.Http.RequestBody
+import play.core.j.{JavaHelpers, JavaActionAnnotations, JavaHandler, JavaHandlerComponents}
+import play.mvc.Http.{Context, RequestBody}
 
-import scala.compat.java8.{OptionConverters, FutureConverters}
+import scala.compat.java8.{FutureConverters, OptionConverters}
 import scala.util.control.NonFatal
 
 /**
@@ -69,9 +69,7 @@ trait HandlerInvokerFactory[-T] {
 
 object HandlerInvokerFactory {
 
-  import play.mvc.{ Result => JResult, LegacyWebSocket, WebSocket => JWebSocket }
-  import play.core.j.JavaWebSocket
-  import com.fasterxml.jackson.databind.JsonNode
+  import play.mvc.{ Result => JResult, WebSocket => JWebSocket }
 
   private[routing] def handlerTags(handlerDef: HandlerDef): Map[String, String] = Map(
     play.api.routing.Router.Tags.RoutePattern -> handlerDef.path,
@@ -143,7 +141,7 @@ object HandlerInvokerFactory {
 
   private[play] def javaBodyParserToScala(parser: play.mvc.BodyParser[_]): BodyParser[RequestBody] = BodyParser { request =>
     val accumulator = parser.apply(new play.core.j.RequestHeaderImpl(request)).asScala()
-    import play.api.libs.iteratee.Execution.Implicits.trampoline
+    import play.core.Execution.Implicits.trampoline
     accumulator.map { javaEither =>
       if (javaEither.left.isPresent) {
         Left(javaEither.left.get().asScala())
@@ -171,37 +169,26 @@ object HandlerInvokerFactory {
     }
   }
 
-  implicit def javaBytesWebSocket: HandlerInvokerFactory[LegacyWebSocket[Array[Byte]]] = new JavaWebSocketInvokerFactory[LegacyWebSocket[Array[Byte]], Array[Byte]] {
-    def webSocketCall(call: => LegacyWebSocket[Array[Byte]]) = JavaWebSocket.ofBytes(call)
-  }
-
-  implicit def javaStringWebSocket: HandlerInvokerFactory[LegacyWebSocket[String]] = new JavaWebSocketInvokerFactory[LegacyWebSocket[String], String] {
-    def webSocketCall(call: => LegacyWebSocket[String]) = JavaWebSocket.ofString(call)
-  }
-
-  implicit def javaJsonWebSocket: HandlerInvokerFactory[LegacyWebSocket[JsonNode]] = new JavaWebSocketInvokerFactory[LegacyWebSocket[JsonNode], JsonNode] {
-    def webSocketCall(call: => LegacyWebSocket[JsonNode]) = JavaWebSocket.ofJson(call)
-  }
-
-  implicit def javaBytesPromiseWebSocket: HandlerInvokerFactory[CompletionStage[LegacyWebSocket[Array[Byte]]]] = new JavaWebSocketInvokerFactory[CompletionStage[LegacyWebSocket[Array[Byte]]], Array[Byte]] {
-    def webSocketCall(call: => CompletionStage[LegacyWebSocket[Array[Byte]]]) = JavaWebSocket.promiseOfBytes(call)
-  }
-
-  implicit def javaStringPromiseWebSocket: HandlerInvokerFactory[CompletionStage[LegacyWebSocket[String]]] = new JavaWebSocketInvokerFactory[CompletionStage[LegacyWebSocket[String]], String] {
-    def webSocketCall(call: => CompletionStage[LegacyWebSocket[String]]) = JavaWebSocket.promiseOfString(call)
-  }
-
-  implicit def javaJsonPromiseWebSocket: HandlerInvokerFactory[CompletionStage[LegacyWebSocket[JsonNode]]] = new JavaWebSocketInvokerFactory[CompletionStage[LegacyWebSocket[JsonNode]], JsonNode] {
-    def webSocketCall(call: => CompletionStage[LegacyWebSocket[JsonNode]]) = JavaWebSocket.promiseOfJson(call)
-  }
-
   implicit def javaWebSocket: HandlerInvokerFactory[JWebSocket] = new HandlerInvokerFactory[JWebSocket] {
-    import play.http.websocket.{ Message => JMessage }
     import play.api.http.websocket._
-    import play.api.libs.iteratee.Execution.Implicits.trampoline
+    import play.core.Execution.Implicits.trampoline
+    import play.http.websocket.{Message => JMessage}
+
     def createInvoker(fakeCall: => JWebSocket, handlerDef: HandlerDef) = new HandlerInvoker[JWebSocket] {
       def call(call: => JWebSocket) = WebSocket.acceptOrResult[Message, Message] { request =>
-        FutureConverters.toScala(call(new j.RequestHeaderImpl(request))).map { resultOrFlow =>
+
+        val javaContext = JavaHelpers.createJavaContext(request)
+
+        val callWithContext = {
+          try {
+            Context.current.set(javaContext)
+            FutureConverters.toScala(call(new j.RequestHeaderImpl(request)))
+          } finally {
+            Context.current.remove()
+          }
+        }
+
+        callWithContext.map { resultOrFlow =>
           if (resultOrFlow.left.isPresent) {
             Left(resultOrFlow.left.get.asScala())
           } else {

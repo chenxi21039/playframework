@@ -1,4 +1,4 @@
-<!--- Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com> -->
+<!--- Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com> -->
 # Configuration file syntax and features
 
 > The configuration file used by Play is based on the [Typesafe config library](https://github.com/typesafehub/config).
@@ -18,6 +18,12 @@ At runtime, the default `application.conf` is loaded from the classpath. System 
 * `config.file` specifies a filesystem path, again it should include the extension, not be a basename
 
 These system properties specify a replacement for `application.conf`, not an addition. If you still want to use some values from the `application.conf` file then you can include the `application.conf` in your other `.conf` file by writing `include "application"` at the top of that file. After you've included the `application.conf`'s settings in your new `.conf` file you can then specify any settings that you want override.
+
+## Using from your controller
+
+The configuration can be available in your controller (or your component), to use the default settings or your custom one, thanks to Dependency Injection (in [[Scala|ScalaDependencyInjection]] or in [[Java|JavaDependencyInjection]]).
+
+@[dependency-injection](code/Configuration.scala)
 
 ## Using with Akka
 

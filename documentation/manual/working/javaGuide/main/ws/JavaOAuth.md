@@ -1,4 +1,4 @@
-<!--- Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com> -->
+<!--- Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com> -->
 # OAuth
 
 [OAuth](http://oauth.net/) is a simple way to publish and interact with protected data. It's also a safer and more secure way for people to give you access. For example, it can be used to access your users' data on [Twitter](https://dev.twitter.com/docs/auth/using-oauth).
@@ -9,11 +9,7 @@ There are two very different versions of OAuth: [OAuth 1.0](https://tools.ietf.o
 
 To use OAuth, first add `javaWs`  to your `build.sbt` file:
 
-```scala
-libraryDependencies ++= Seq(
-  javaWs
-)
-```
+@[javaws-sbt-dependencies](code/javaws.sbt)
 
 ## Required Information
 

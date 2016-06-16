@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.api.mvc
 
@@ -22,6 +22,22 @@ object CookiesSpec extends Specification {
     "should create an empty Cookies instance with no header" in withApplication {
       val c = Cookies.fromCookieHeader(None)
       c must beAnInstanceOf[Cookies]
+    }
+  }
+
+  "Cookie" should {
+
+    val encoder = play.core.netty.utils.ServerCookieEncoder.STRICT
+
+    "properly encode ! character" in {
+      val output = encoder.encode("TestCookie", "!")
+      output must be_==("TestCookie=!")
+    }
+
+    // see #4460 for the gory details
+    "properly encode all special characters" in {
+      val output = encoder.encode("TestCookie", "!#$%&'()*+-./:<=>?@[]^_`{|}~")
+      output must be_==("TestCookie=!#$%&'()*+-./:<=>?@[]^_`{|}~")
     }
   }
 

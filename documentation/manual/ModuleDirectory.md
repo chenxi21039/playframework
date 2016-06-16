@@ -1,4 +1,4 @@
-<!--- Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com> -->
+<!--- Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com> -->
 # Play modules
 
 Play uses public modules to augment built-in functionality.  
@@ -89,7 +89,7 @@ To create your own public module or to migrate from a `play.api.Plugin`, please 
 * **Short description:** Provides a Play 2.x module for ReactiveMongo, asynchronous and reactive driver for MongoDB.
 
 ### Play-Slick
-* **Website (docs, sample):** <https://github.com/freekh/play-slick>
+* **Website (docs, sample):** <https://github.com/playframework/play-slick>
 * **Short description:** This plugin makes Slick a first-class citizen of Play.
 
 ### Redis Plugin  (Java and Scala)
@@ -131,6 +131,11 @@ To create your own public module or to migrate from a `play.api.Plugin`, please 
 * **Documentation:** <https://github.com/tegonal/play-messagescompiler/blob/master/readme.md>
 * **Short description:** Provides type safety for the project's messages.
 
+### Play I18n HOCON
+
+* **Website:** <https://marcospereira.github.io/play-i18n-hocon/>
+* **Documentation:** <https://marcospereira.github.io/play-i18n-hocon/>
+* **Short description:** A Playframework module to use HOCON for i18n instead of Java Properties
 
 
 ## Performance

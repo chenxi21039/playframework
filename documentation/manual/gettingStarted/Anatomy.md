@@ -1,4 +1,4 @@
-<!--- Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com> -->
+<!--- Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com> -->
 # Anatomy of a Play application
 
 ## The Play application layout
@@ -30,7 +30,7 @@ logs                     → Logs folder
  └ application.log       → Default log file
 target                   → Generated stuff
  └ resolution-cache      → Info about dependencies
- └ scala-2.10
+ └ scala-2.11
     └ api                → Generated API docs
     └ classes            → Compiled class files
     └ routes             → Sources generated from routes

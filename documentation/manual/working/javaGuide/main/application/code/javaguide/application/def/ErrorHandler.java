@@ -1,9 +1,11 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package javaguide.application.def;
 
 //#default
+import com.typesafe.config.Config;
+
 import play.*;
 import play.api.OptionalSourceMapper;
 import play.api.UsefulException;
@@ -16,12 +18,13 @@ import javax.inject.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 
+@Singleton
 public class ErrorHandler extends DefaultHttpErrorHandler {
 
     @Inject
-    public ErrorHandler(Configuration configuration, Environment environment,
+    public ErrorHandler(Config config, Environment environment,
                         OptionalSourceMapper sourceMapper, Provider<Router> routes) {
-        super(configuration, environment, sourceMapper, routes);
+        super(config, environment, sourceMapper, routes);
     }
 
     protected CompletionStage<Result> onProdServerError(RequestHeader request, UsefulException exception) {

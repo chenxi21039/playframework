@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.http;
 
@@ -12,10 +12,10 @@ import scala.Tuple2;
 
 public class DefaultHttpRequestHandler implements HttpRequestHandler {
 
-    private final play.api.http.HttpRequestHandler underlying;
+    private final play.api.http.JavaCompatibleHttpRequestHandler underlying;
 
     @Inject
-    public DefaultHttpRequestHandler(play.api.http.HttpRequestHandler underlying) {
+    public DefaultHttpRequestHandler(play.api.http.JavaCompatibleHttpRequestHandler underlying) {
         this.underlying = underlying;
     }
 

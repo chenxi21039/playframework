@@ -1,4 +1,4 @@
-<!--- Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com> -->
+<!--- Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com> -->
 # Protecting against Cross Site Request Forgery
 
 Cross Site Request Forgery (CSRF) is a security exploit where an attacker tricks a victims browser into making a request using the victims session.  Since the session token is sent with every request, if an attacker can coerce the victims browser to make a request on their behalf, the attacker can make requests on the users behalf.
@@ -27,11 +27,11 @@ Alternatively, you can set `play.filters.csrf.header.bypassHeaders` to match com
 This configuration would look like:
 
 ```
-play.filters.csrf.headers.bypassHeaders {
+play.filters.csrf.header.bypassHeaders {
   X-Requested-With = "*"
   Csrf-Token = "nocheck"
 }
-``
+```
 
 Caution should be taken when using this configuration option, as historically browser plugins have undermined this type of CSRF defence.
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.api.inject
 
@@ -87,7 +87,7 @@ class DefaultApplicationLifecycle extends ApplicationLifecycle {
   def stop(): Future[_] = {
 
     // Do we care if one hook executes on another hooks redeeming thread? Hopefully not.
-    import play.api.libs.iteratee.Execution.Implicits.trampoline
+    import play.core.Execution.Implicits.trampoline
 
     hooks.foldLeft(Future.successful[Any](())) { (future, hook) =>
       future.flatMap { _ =>

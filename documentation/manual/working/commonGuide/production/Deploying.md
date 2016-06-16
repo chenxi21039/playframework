@@ -1,4 +1,4 @@
-<!--- Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com> -->
+<!--- Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com> -->
 # Deploying your application
 
 We have seen how to run a Play application in development mode, however the `run` command should not be used to run an application in production mode.  When using `run`, on each request, Play checks with sbt to see if any files have changed, and this may have significant performance impacts on your application.
@@ -175,12 +175,12 @@ $ target/universal/stage/bin/my-first-app -Dconfig.file=/full/path/to/conf/appli
 
 Play provides a convenient utility for running a test application in prod mode.
 
-> This is not intended for production usage.
+> **Note:** This is not intended for production usage.
 
-To run an application in prod mode, run `testProd`:
+To run an application in prod mode, run `runProd`:
 
 ```bash
-[my-first-app] $ testProd
+[my-first-app] $ runProd
 ```
 
 ## Using the SBT assembly plugin

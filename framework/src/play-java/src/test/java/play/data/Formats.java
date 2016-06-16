@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.data;
 
@@ -24,12 +24,12 @@ public class Formats {
     @Retention(RUNTIME)
     public static @interface Currency {
     }
-    
+
     /**
      * Annotation formatter, triggered by the <code>@Currency</code> annotation.
      */
     public static class AnnotationCurrencyFormatter extends Formatters.AnnotationFormatter<Currency, BigDecimal> {
-        
+
         /**
          * Binds the field - constructs a concrete value from submitted data.
          *
@@ -47,7 +47,7 @@ public class Formats {
             format.setParseBigDecimal(true);
             return (BigDecimal)format.parseObject(text);
         }
-        
+
         /**
          * Unbinds this field - converts a concrete value to plain string
          *
@@ -61,10 +61,10 @@ public class Formats {
             if(value == null) {
                 return "";
             }
-            
+
             DecimalFormat formatter = (DecimalFormat) NumberFormat.getInstance(locale);
             return formatter.format(value);
         }
-        
+
     }
 }

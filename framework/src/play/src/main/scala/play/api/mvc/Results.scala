@@ -1,23 +1,21 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.api.mvc
 
+import java.nio.charset.StandardCharsets
 import java.nio.file.{ Files, Path }
 
-import akka.stream.scaladsl.{ StreamConverters, FileIO, Source }
+import akka.stream.scaladsl.{ FileIO, Source, StreamConverters }
 import akka.util.ByteString
-import org.joda.time.{ DateTime, DateTimeZone }
 import org.joda.time.format.{ DateTimeFormat, DateTimeFormatter }
-import play.api.i18n.{ MessagesApi, Lang }
-import play.api.libs.iteratee._
-import play.api.http._
+import org.joda.time.{ DateTime, DateTimeZone }
 import play.api.http.HeaderNames._
-import play.api.libs.streams.Streams
-
-import play.core.Execution.Implicits._
-import play.api.libs.concurrent.Execution.defaultContext
+import play.api.http._
+import play.api.i18n.{ Lang, MessagesApi }
 import play.core.utils.CaseInsensitiveOrdered
+import play.utils.UriEncoding
+
 import scala.collection.immutable.TreeMap
 
 /**
@@ -33,6 +31,12 @@ final class ResponseHeader(val status: Int, _headers: Map[String, String] = Map.
     this(status, collection.JavaConversions.mapAsScalaMap(_headers).toMap, reasonPhrase)
 
   val headers: Map[String, String] = TreeMap[String, String]()(CaseInsensitiveOrdered) ++ _headers
+
+  // validate headers so we know this response header is well formed
+  for ((name, value) <- headers) {
+    if (name eq null) throw new NullPointerException("Response header names cannot be null!")
+    if (value eq null) throw new NullPointerException(s"Response header '$name' has null value!")
+  }
 
   def copy(status: Int = status, headers: Map[String, String] = headers, reasonPhrase: Option[String] = reasonPhrase): ResponseHeader =
     new ResponseHeader(status, headers, reasonPhrase)
@@ -105,7 +109,7 @@ case class Result(header: ResponseHeader, body: HttpEntity) {
    */
   def withCookies(cookies: Cookie*): Result = {
     if (cookies.isEmpty) this else {
-      withHeaders(SET_COOKIE -> Cookies.mergeSetCookieHeader(header.headers.get(SET_COOKIE).getOrElse(""), cookies))
+      withHeaders(SET_COOKIE -> Cookies.mergeSetCookieHeader(header.headers.getOrElse(SET_COOKIE, ""), cookies))
     }
   }
 
@@ -121,7 +125,7 @@ case class Result(header: ResponseHeader, body: HttpEntity) {
    * @return the new result
    */
   def discardingCookies(cookies: DiscardingCookie*): Result = {
-    withHeaders(SET_COOKIE -> Cookies.mergeSetCookieHeader(header.headers.get(SET_COOKIE).getOrElse(""), cookies.map(_.toCookie)))
+    withHeaders(SET_COOKIE -> Cookies.mergeSetCookieHeader(header.headers.getOrElse(SET_COOKIE, ""), cookies.map(_.toCookie)))
   }
 
   /**
@@ -377,7 +381,7 @@ trait Results {
           Map(
             CONTENT_DISPOSITION -> {
               val dispositionType = if (inline) "inline" else "attachment"
-              dispositionType + "; filename=\"" + name + "\""
+              s"""$dispositionType; filename="$name"; filename*=utf-8''${UriEncoding.encodePathSegment(name, StandardCharsets.UTF_8)}"""
             }
           )
         ),
@@ -396,7 +400,7 @@ trait Results {
      * @param inline Use Content-Disposition inline or attachment.
      * @param fileName Function to retrieve the file name. By default the name of the file is used.
      */
-    def sendFile(content: java.io.File, inline: Boolean = false, fileName: java.io.File => String = _.getName, onClose: () => Unit = () => ()): Result = {
+    def sendFile(content: java.io.File, inline: Boolean = true, fileName: java.io.File => String = _.getName, onClose: () => Unit = () => ()): Result = {
       streamFile(FileIO.fromFile(content), fileName(content), content.length, inline)
     }
 
@@ -407,11 +411,8 @@ trait Results {
      * @param inline Use Content-Disposition inline or attachment.
      * @param fileName Function to retrieve the file name. By default the name of the file is used.
      */
-    def sendPath(content: Path, inline: Boolean = false, fileName: Path => String = _.getFileName.toString, onClose: () => Unit = () => ()): Result = {
-      val publisher = Streams.enumeratorToPublisher(Enumerator.fromPath(content) &>
-        Enumeratee.onIterateeDone(onClose)(defaultContext))
-      streamFile(StreamConverters.fromInputStream(() => Files.newInputStream(content)),
-        fileName(content), Files.size(content), inline)
+    def sendPath(content: Path, inline: Boolean = true, fileName: Path => String = _.getFileName.toString, onClose: () => Unit = () => ()): Result = {
+      streamFile(FileIO.fromFile(content.toFile), fileName(content), Files.size(content), inline)
     }
 
     /**
@@ -421,8 +422,7 @@ trait Results {
      * @param classLoader The classloader to load it from, defaults to the classloader for this class.
      * @param inline Whether it should be served as an inline file, or as an attachment.
      */
-    def sendResource(resource: String, classLoader: ClassLoader = Results.getClass.getClassLoader,
-      inline: Boolean = true): Result = {
+    def sendResource(resource: String, classLoader: ClassLoader = Results.getClass.getClassLoader, inline: Boolean = true): Result = {
       val stream = classLoader.getResourceAsStream(resource)
       val fileName = resource.split('/').last
       streamFile(StreamConverters.fromInputStream(() => stream), fileName, stream.available(), inline)
@@ -443,36 +443,6 @@ trait Results {
       Result(
         header = header,
         body = HttpEntity.Chunked(content.map(c => HttpChunk.Chunk(writeable.transform(c))), writeable.contentType)
-      )
-    }
-
-    /**
-     * Feed the content as the response, using chunked transfer encoding.
-     *
-     * Chunked transfer encoding is only supported for HTTP 1.1 clients.  If the client is an HTTP 1.0 client, Play will
-     * instead return a 505 error code.
-     *
-     * Chunked encoding allows the server to send a response where the content length is not known, or for potentially
-     * infinite streams, while still allowing the connection to be kept alive and reused for the next request.
-     *
-     * @param content Enumerator providing the content to stream.
-     */
-    @deprecated("Use chunked with an Akka streams Source instead", "2.5.0")
-    def chunked[C](content: Enumerator[C])(implicit writeable: Writeable[C]): Result = {
-      chunked(Source.fromPublisher(Streams.enumeratorToPublisher(content)))
-    }
-
-    /**
-     * Feed the content as the response, closing the connection when done.
-     *
-     * @param content Enumerator providing the content to stream.
-     */
-    @deprecated("Use sendEntity with a Streamed entity instead", "2.5.0")
-    def feed[C](content: Enumerator[C])(implicit writeable: Writeable[C]): Result = {
-      Result(
-        header = header,
-        body = HttpEntity.Streamed(Source.fromPublisher(Streams.enumeratorToPublisher(content)).map(writeable.transform),
-          None, writeable.contentType)
       )
     }
 

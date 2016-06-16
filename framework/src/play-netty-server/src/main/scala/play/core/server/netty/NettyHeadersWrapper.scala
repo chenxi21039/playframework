@@ -1,11 +1,10 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.core.server.netty
 
 import io.netty.handler.codec.http._
 import play.api.mvc._
-import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConverters._
 
 /**

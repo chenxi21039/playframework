@@ -1,4 +1,4 @@
-<!--- Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com> -->
+<!--- Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com> -->
 # Deploying to Heroku
 
 [Heroku](https://www.heroku.com/) is a cloud application platform – a way of building and deploying web apps.
@@ -213,7 +213,7 @@ web: target/universal/stage/bin/myapp -Dhttp.port=${PORT} -Dplay.evolutions.db.d
 
 This instructs Heroku that for the process named `web` it will run Play and override the `play.evolutions.db.default.autoApply`, `db.default.driver`, and `db.default.url` configuration parameters.  Note that the `Procfile` command can be maximum 255 characters long.  Alternatively, use the `-Dconfig.resource=` or `-Dconfig.file=` mentioned in [[production configuration|ProductionConfiguration]] page.
 
-Also, be aware the the `DATABASE_URL` is in the platform independent format:
+Also, be aware the `DATABASE_URL` is in the platform independent format:
 
 ```text
 vendor://username:password@host:port/db

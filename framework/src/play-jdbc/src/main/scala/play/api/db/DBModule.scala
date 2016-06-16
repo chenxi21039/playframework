@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.api.db
 
@@ -65,7 +65,7 @@ class DBApiProvider @Inject() (environment: Environment, configuration: Configur
     val pool = ConnectionPool.fromConfig(config.getString("play.db.pool"), injector,
       environment, defaultConnectionPool)
     val configs = if (config.hasPath(dbKey)) {
-      PlayConfig(config).getPrototypedMap(dbKey, "play.db.prototype").mapValues(_.underlying)
+      Configuration(config).getPrototypedMap(dbKey, "play.db.prototype").mapValues(_.underlying)
     } else Map.empty[String, Config]
     val db = new DefaultDBApi(configs, pool, environment)
     lifecycle.addStopHook { () => Future.successful(db.shutdown()) }

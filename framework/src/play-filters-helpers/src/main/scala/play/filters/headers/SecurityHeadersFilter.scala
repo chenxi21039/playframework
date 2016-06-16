@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.filters.headers
 
@@ -7,8 +7,7 @@ import javax.inject.{ Singleton, Inject, Provider }
 
 import play.api.inject.Module
 import play.api.mvc._
-import scala.concurrent.Future
-import play.api.{ Environment, PlayConfig, Configuration }
+import play.api.{ Environment, Configuration }
 
 /**
  * This class sets a number of common security headers on the HTTP request.
@@ -23,6 +22,7 @@ import play.api.{ Environment, PlayConfig, Configuration }
  * <li>{{play.filters.headers.contentTypeOptions}} - sets contentTypeOptions. Some("nosniff") by default.
  * <li>{{play.filters.headers.permittedCrossDomainPolicies}} - sets permittedCrossDomainPolicies. Some("master-only") by default.
  * <li>{{play.filters.headers.contentSecurityPolicy}} - sets contentSecurityPolicy. Some("default-src 'self'") by default.
+ * <li>{{play.filters.headers.allowActionSpecificHeaders}} - sets whether .withHeaders may be used to provide page-specific overrides.  False by default.
  * </ul>
  *
  * @see <a href="https://developer.mozilla.org/en-US/docs/HTTP/X-Frame-Options">X-Frame-Options</a>
@@ -72,7 +72,8 @@ case class SecurityHeadersConfig(frameOptions: Option[String] = Some("DENY"),
     xssProtection: Option[String] = Some("1; mode=block"),
     contentTypeOptions: Option[String] = Some("nosniff"),
     permittedCrossDomainPolicies: Option[String] = Some("master-only"),
-    contentSecurityPolicy: Option[String] = Some("default-src 'self'")) {
+    contentSecurityPolicy: Option[String] = Some("default-src 'self'"),
+    allowActionSpecificHeaders: Boolean = false) {
   def this() {
     this(frameOptions = Some("DENY"))
   }
@@ -98,14 +99,15 @@ case class SecurityHeadersConfig(frameOptions: Option[String] = Some("DENY"),
 object SecurityHeadersConfig {
 
   def fromConfiguration(conf: Configuration): SecurityHeadersConfig = {
-    val config = PlayConfig(conf).get[PlayConfig]("play.filters.headers")
+    val config = conf.get[Configuration]("play.filters.headers")
 
     SecurityHeadersConfig(
       frameOptions = config.get[Option[String]]("frameOptions"),
       xssProtection = config.get[Option[String]]("xssProtection"),
       contentTypeOptions = config.get[Option[String]]("contentTypeOptions"),
       permittedCrossDomainPolicies = config.get[Option[String]]("permittedCrossDomainPolicies"),
-      contentSecurityPolicy = config.get[Option[String]]("contentSecurityPolicy"))
+      contentSecurityPolicy = config.get[Option[String]]("contentSecurityPolicy"),
+      allowActionSpecificHeaders = config.get[Option[Boolean]]("allowActionSpecificHeaders").getOrElse(false))
   }
 }
 
@@ -119,22 +121,33 @@ class SecurityHeadersFilter @Inject() (config: SecurityHeadersConfig) extends Es
 
   /**
    * Returns the security headers for a request.
-   * All security headers applied to all requests by default. Override to alter that behavior.
+   * All security headers applied to all requests by default.
+   * Omit any headers explicitly provided in the result object, provided
+   * play.filters.headers.allowActionSpecificHeaders is true.
+   * Override this method to alter that behavior.
    */
-  protected def headers(request: RequestHeader): Seq[(String, String)] = Seq(
-    config.frameOptions.map(X_FRAME_OPTIONS_HEADER -> _),
-    config.xssProtection.map(X_XSS_PROTECTION_HEADER -> _),
-    config.contentTypeOptions.map(X_CONTENT_TYPE_OPTIONS_HEADER -> _),
-    config.permittedCrossDomainPolicies.map(X_PERMITTED_CROSS_DOMAIN_POLICIES_HEADER -> _),
-    config.contentSecurityPolicy.map(CONTENT_SECURITY_POLICY_HEADER -> _)
-  ).flatten
+  protected def headers(request: RequestHeader, result: Result): Seq[(String, String)] = {
+    val headers = Seq(
+      config.frameOptions.map(X_FRAME_OPTIONS_HEADER -> _),
+      config.xssProtection.map(X_XSS_PROTECTION_HEADER -> _),
+      config.contentTypeOptions.map(X_CONTENT_TYPE_OPTIONS_HEADER -> _),
+      config.permittedCrossDomainPolicies.map(X_PERMITTED_CROSS_DOMAIN_POLICIES_HEADER -> _),
+      config.contentSecurityPolicy.map(CONTENT_SECURITY_POLICY_HEADER -> _)
+    ).flatten
+
+    if (config.allowActionSpecificHeaders) {
+      headers.filter { case (name, _) => result.header.headers.get(name).isEmpty }
+    } else {
+      headers
+    }
+  }
 
   /**
    * Applies the filter to an action, appending the headers to the result so it shows in the HTTP response.
    */
   def apply(next: EssentialAction) = EssentialAction { req =>
-    import play.api.libs.iteratee.Execution.Implicits.trampoline
-    next(req).map(_.withHeaders(headers(req): _*))
+    import play.core.Execution.Implicits.trampoline
+    next(req).map(result => result.withHeaders(headers(req, result): _*))
   }
 }
 

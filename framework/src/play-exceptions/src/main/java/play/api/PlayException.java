@@ -1,9 +1,8 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.api;
 
-import java.io.*;
 import java.util.*;
 
 import java.util.concurrent.atomic.AtomicLong;
@@ -90,7 +89,7 @@ public class PlayException extends UsefulException {
                 if(input() == null || line() == null) {
                     return null;
                 }
-                String[] lines = input().split("\n");
+                String[] lines = input().split("\\r?\\n");
                 int firstLine = Math.max(0, line() - 1 - border);
                 int lastLine = Math.min(lines.length - 1, line() - 1 + border);
                 List<String> focusOn = new ArrayList<String>();

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.mvc;
 
@@ -215,6 +215,10 @@ public class Result {
      */
     public Cookies cookies() {
         return JavaResultExtractor.getCookies(header);
+    }
+
+    public Result withCookies(Cookie... cookies) {
+        return new Result(JavaResultExtractor.withCookies(header, cookies), body);
     }
 
     /**

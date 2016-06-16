@@ -1,6 +1,7 @@
+<!--- Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com> -->
 # Java Migration Guide
 
-In order to better fit in to the Java 8 ecosystem, and to allow Play Java users to make more idiomatic use of Java in their applications, Play has switched to using a number of Java 8 types such as `CompletionStage` and `Function`. Play also has new Java APIs for `EssentialAction`, `EssentialFilter`, `Router`, `BodyParser`, and `HttpRequestHandler`.
+In order to better fit in to the Java 8 ecosystem, and to allow Play Java users to make more idiomatic use of Java in their applications, Play has switched to using a number of Java 8 types such as `CompletionStage` and `Function`. Play also has new Java APIs for `EssentialAction`, `EssentialFilter`, `Router`, `BodyParser` and `HttpRequestHandler`.
 
 ## New Java APIs
 
@@ -8,7 +9,7 @@ There are several API changes to accommodate writing filters and HTTP request ha
 
 ### Filter API
 
-You will most likely use `EssentialAction` when creating a filter. You can either use the [`Filter`](api/java/play/mvc/Filter.html) API or the lower-level [`EssentialFilter`](api/java/play/mvc/EssentialFilter.html) API that operates on `[`EssentialAction`](api/java/play/mvc/EssentialAction.html)`s.
+You will most likely use `EssentialAction` when creating a filter. You can either use the [`Filter`](api/java/play/mvc/Filter.html) API or the lower-level [`EssentialFilter`](api/java/play/mvc/EssentialFilter.html) API that operates on [`EssentialAction`](api/java/play/mvc/EssentialAction.html)s.
 
 ### HttpRequestHandler and ActionCreator
 
@@ -32,7 +33,7 @@ You need to change code that explicitly mentions a type like `F.Function1`. For 
 void myMethod(F.Callback0 block) { ... }
 ```
 
-becomes
+Becomes:
 
 ```java
 void myMethod(Runnable block) { ... }
@@ -47,7 +48,7 @@ The table below shows all the changes:
 | `F.Callback2<A,B>`   | `java.util.function.BiConsumer<A,B>`
 | `F.Callback3<A,B,C>` | No counterpart in Java 8, consider using `akka.japi.function.Function3`
 | `F.Predicate<A>`     | `java.util.function.Predicate<A>`
-| `F.Function0<A>`     | `java.util.function.Supplier<A>`
+| `F.Function0<R>`     | `java.util.function.Supplier<R>`
 | `F.Function1<A,R>`   | `java.util.function.Function<A,R>`
 | `F.Function2<A,B,R>` | `java.util.function.BiFunction<A,B,R>`
 
@@ -123,7 +124,7 @@ APIs that use `F.Promise` now use the standard Java 8 [`CompletionStage`](https:
 | `flatMap`           | `thenComposeAsync` (use `HttpExecution#defaultContext()` if needed) |
 | `filter`            | `thenApplyAsync` and implement the filter manually (use `HttpExecution#defaultContext()` if needed) |
 
-These migrations are explained in more detail in the [Javadoc for `F.Promise`](api/java/play/libs/F.Promise.html).
+These migrations are explained in more detail in the Javadoc for `F.Promise`.
 
 ## Replaced `F.Option` with Java 8's `Optional`
 
@@ -146,6 +147,11 @@ Here follows a short table that should ease the migration:
 | `o.map(f)`         | `o.map(f)`                        |
 
 `Optional` has a lot more combinators, so we highly encourage you to [learn its API](https://docs.oracle.com/javase/8/docs/api/java/util/Optional.html) if you are not familiar with it already.
+
+## Thread Local attributes
+
+Thread Local attributes such as `Http.Context`, `Http.Session` etc are no longer passed to a different execution context when used with `CompletionStage` and `*Async` callbacks. 
+More information is [here](https://www.playframework.com/documentation/2.5.x/ThreadPools#Java-thread-locals)
 
 ## Deprecated static APIs
 

@@ -1,12 +1,11 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.api.inject
 
 import java.lang.reflect.Constructor
 import play.{ Configuration => JavaConfiguration, Environment => JavaEnvironment }
 import play.api._
-import play.utils.PlayIO
 import scala.annotation.varargs
 import scala.reflect.ClassTag
 
@@ -45,7 +44,7 @@ abstract class Module {
    * Get the bindings provided by this module.
    *
    * Implementations are strongly encouraged to do *nothing* in this method other than provide bindings.  Startup
-   * should be handled in the the constructors and/or providers bound in the returned bindings.  Dependencies on other
+   * should be handled in the constructors and/or providers bound in the returned bindings.  Dependencies on other
    * modules or components should be expressed through constructor arguments.
    *
    * The configuration and environment a provided for the purpose of producing dynamic bindings, for example, if what
@@ -134,6 +133,8 @@ object Modules {
 
       {
         tryConstruct(environment, configuration)
+      } orElse {
+        tryConstruct(new JavaEnvironment(environment), configuration.underlying)
       } orElse {
         tryConstruct(new JavaEnvironment(environment), new JavaConfiguration(configuration))
       } orElse {

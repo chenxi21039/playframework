@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.libs.ws;
 
@@ -8,8 +8,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 
 import akka.stream.javadsl.Source;
 import akka.util.ByteString;
+import play.mvc.Http;
 
-import play.libs.F;
 
 import java.io.File;
 import java.io.InputStream;
@@ -73,6 +73,14 @@ public interface WSRequest {
      */
     CompletionStage<WSResponse> patch(File body);
 
+    /**
+     * Perform a PATCH on the request asynchronously.
+     *
+     * @param body represented as a MultipartFormData.Part
+     * @return a promise to the response
+     */
+    CompletionStage<WSResponse> patch(Source<? super Http.MultipartFormData.Part<Source<ByteString, ?>>, ?> body);
+
     //-------------------------------------------------------------------------
     // "POST"
     //-------------------------------------------------------------------------
@@ -109,6 +117,14 @@ public interface WSRequest {
      */
     CompletionStage<WSResponse> post(File body);
 
+    /**
+     * Perform a POST on the request asynchronously.
+     *
+     * @param body represented as a MultipartFormData.Part
+     * @return a promise to the response
+     */
+    CompletionStage<WSResponse> post(Source<? super Http.MultipartFormData.Part<Source<ByteString, ?>>, ?> body);
+
     //-------------------------------------------------------------------------
     // "PUT"
     //-------------------------------------------------------------------------
@@ -144,6 +160,14 @@ public interface WSRequest {
      * @return a promise to the response
      */
     CompletionStage<WSResponse> put(File body);
+
+    /**
+     * Perform a PUT on the request asynchronously.
+     *
+     * @param body represented as a MultipartFormData.Part
+     * @return a promise to the response
+     */
+    CompletionStage<WSResponse> put(Source<? super Http.MultipartFormData.Part<Source<ByteString, ?>>, ?> body);
 
     //-------------------------------------------------------------------------
     // Miscellaneous execution methods
@@ -191,6 +215,14 @@ public interface WSRequest {
      * @return a promise to the streaming response
      */
     CompletionStage<StreamedResponse> stream();
+
+    /**
+     * Adds a request filter.
+     *
+     * @param filter a tranforming filter.
+     * @return the modified request.
+     */
+    WSRequest withRequestFilter(WSRequestFilter filter);
 
     //-------------------------------------------------------------------------
     // Setters

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package scalaguide.advanced.filters
 
@@ -40,15 +40,12 @@ import simple.LoggingFilter
 
 // #filters
 import javax.inject.Inject
-import play.api.http.HttpFilters
+import play.api.http.DefaultHttpFilters
 import play.filters.gzip.GzipFilter
 
 class Filters @Inject() (
   gzip: GzipFilter,
   log: LoggingFilter
-) extends HttpFilters {
-
-  val filters = Seq(gzip, log)
-}
+) extends DefaultHttpFilters(gzip, log)
 //#filters
 }

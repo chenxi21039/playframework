@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package views.html.helper
 
@@ -176,6 +176,25 @@ object HelpersSpec extends Specification {
       }.mkString("")
 
       body must contain("""label for="bar_0">bar.0""")
+    }
+  }
+
+  "helpers" should {
+    "correctly lookup constraint, error and format messages" in {
+
+      val field = Field(
+        Form(single("foo" -> Forms.text)),
+        "foo",
+        Seq(("constraint.custom", Seq("constraint.customarg"))),
+        Some("format.custom", Seq("format.customarg")),
+        Seq(FormError("foo", "error.custom", Seq("error.customarg"))),
+        None)
+
+      val body = inputText.apply(field).body
+
+      body must contain("""<dd class="error">This is a custom error</dd>""")
+      body must contain("""<dd class="info">I am a custom constraint</dd>""")
+      body must contain("""<dd class="info">Look at me! I am a custom format pattern</dd>""")
     }
   }
 }

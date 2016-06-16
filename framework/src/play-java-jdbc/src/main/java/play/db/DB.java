@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2016 Typesafe Inc. <http://www.typesafe.com>
+ * Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.db;
 
@@ -20,7 +20,9 @@ public final class DB {
 	private DB(){}
 
     /**
-     * @return the default datasource.
+     * Returns the default datasource.
+     *
+     * @return the default datasource
      */
     public static DataSource getDataSource() {
         return getDataSource("default");
